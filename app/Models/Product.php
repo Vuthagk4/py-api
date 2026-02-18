@@ -4,10 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Product extends Model
 {
     use HasFactory;
+
+
 
     protected $fillable = [
         'name',
@@ -18,14 +21,29 @@ class Product extends Model
         'category_id'
     ];
 
-    // Automatically convert "products/filename.jpg" to "http://.../storage/products/filename.jpg"
+    /**
+     * Accessor for the Image URL.
+     * This ensures Filament and your API always get the full path.
+     */
     public function getImageAttribute($value)
-    {
-        return $value ? asset('storage/' . $value) : null;
+{
+    if (!$value) {
+        return asset('storage/products/default.jpg');
     }
 
-    public function category()
+    // 🔥 Prevents the "Double/Triple URL" crash on the home screen
+    if (str_starts_with($value, 'http')) {
+        return $value;
+    }
+
+    return asset('storage/' . $value);
+}
+
+    /**
+     * Relationship to Category.
+     */
+    public function category(): BelongsTo
     {
-        return $this->belongsTo(Category::class);
+        return $this->belongsTo(Category::class, 'category_id');
     }
 }

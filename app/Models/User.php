@@ -2,21 +2,19 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
-class User extends Authenticatable
-{
-    /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable,HasApiTokens;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
+class User extends Authenticatable implements FilamentUser
+{
+    use HasFactory, Notifiable, HasApiTokens;
+    // app/Models/User.php
+
+
     protected $fillable = [
         'name',
         'email',
@@ -24,21 +22,40 @@ class User extends Authenticatable
         'avatar'
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
     /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
+     * Mobile App Fix: Full Avatar URL
+     * Mobile apps need the full URL (http://...) to display images correctly.
      */
+    public function getAvatarAttribute($value)
+{
+    // 1. If empty, give default
+    if (!$value || $value === 'default.jpg') {
+        return asset('storage/default.jpg');
+    }
+
+    // 2. 🔥 THIS STOPS THE LOOP: If it already starts with http, don't touch it!
+    if (str_starts_with($value, 'http')) {
+        return $value;
+    }
+
+    // 3. Otherwise, add storage prefix
+    return asset('storage/' . $value);
+}
+
+    /**
+     * Filament Admin Access
+     */
+    public function canAccessPanel(Panel $panel): bool
+    {
+        // Allow login to Admin Panel
+        return true; 
+    }
+
     protected function casts(): array
     {
         return [

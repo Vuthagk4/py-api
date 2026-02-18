@@ -3,107 +3,100 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use Dotenv\Exception\ValidationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 
 class AuthController extends Controller
 {
-    public function register(Request $request){
-        $request->validate(
-            [
-                'name'=> 'required|string|max:255',
-                'email'=> 'required|string|email|unique:users',
-                'password'=> 'required|string|min:6'
-            ]
-        );
+    public function register(Request $request) {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|unique:users',
+            'password' => 'required|string|min:6',
+            'avatar' => 'nullable|image|mimes:jpg,jpeg,png|max:2048'
+        ]);
 
-        if($request->hasFile('avatar')){
+        $avatarPath = 'default.jpg'; // Default value from your Navicat SQL
+
+        if ($request->hasFile('avatar')) {
             $image = $request->file('avatar');
-           $path =  Storage::disk('public')->put('users',$image);
-           $request->avatar = $path;
+            // Store in storage/app/public/users
+            $avatarPath = Storage::disk('public')->put('users', $image);
         }
-        User::create(
-            [
-                'name'=> $request->name,
-                'email'=> $request->email,
-                'password'=> Hash::make($request->password),
-                'avatar'=> $request->avatar
-                
-            ]
-        );
+
+        User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+            'avatar' => $avatarPath // Save the path string
+        ]);
         
         return response()->json([
-            'message'=> 'user created successful',
-        ],200);
-    
+            'message' => 'User created successfully',
+        ], 200);
     }
 
-    public function login(Request $request){
-        $request->validate(
-            [
-           
-                'email'=> 'required|string|email',
-                'password'=> 'required|string'
-            ]
-        );
+    public function login(Request $request) {
+        $request->validate([
+            'email' => 'required|string|email',
+            'password' => 'required|string'
+        ]);
         
-        $user  = User::where('email',$request->email)->first();
-        if(!$user || !Hash::check($request->password,$user->password)){
-            return response()->json(
-                [
-                    'message'=> 'invalid credential'
-                ]
-            );
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user || !Hash::check($request->password, $user->password)) {
+            return response()->json(['message' => 'Invalid credentials'], 401);
         }
 
         $token = $user->createToken('auth_token')->plainTextToken;
-        $user->avatar = $user->avatar ? asset('storage/'.$user->avatar):null;
 
-        return response()->json(
-            [
-                'token'=> $token,
-                'user'=> $user
-            ]
-        );
+        // Ensure the avatar shows the full URL in the response
+        if ($user->avatar && $user->avatar !== 'default.jpg') {
+            $user->avatar = asset('storage/' . $user->avatar);
+        } else {
+            $user->avatar = asset('storage/users/default.jpg');
+        }
 
-
-    }
-
-    public function logout(Request $request){
-        $request->user()->tokens()->delete();
         return response()->json([
-            'message'=> "logout successfully"
+            'token' => $token,
+            'user' => $user
         ]);
     }
 
-    public function update(Request $request){
-        $user = $request->user(); // get the authenticated user
-        if($request->hasFile('avatar')){
+    public function logout(Request $request) {
+        $request->user()->tokens()->delete();
+        return response()->json(['message' => "Logout successfully"]);
+    }
+
+    public function update(Request $request) {
+        $user = $request->user();
+
+        if ($request->hasFile('avatar')) {
             $image = $request->file('avatar');
-            $path =  Storage::disk('public')->put('users',$image);
+            $path = Storage::disk('public')->put('users', $image);
             
-            if(Storage::disk('public')->exists($user->avatar)){
+            // Delete old avatar if it's not the default
+            if ($user->avatar && $user->avatar !== 'default.jpg' && Storage::disk('public')->exists($user->avatar)) {
                 Storage::disk('public')->delete($user->avatar);
             }
             $user->avatar = $path;
-
-
         }
 
-        if($request->password){
+        if ($request->password) {
             $user->password = Hash::make($request->password);
         }
 
-        $user->name = $request->name;
+        // Only update name if it is provided in the request
+        if ($request->name) {
+            $user->name = $request->name;
+        }
     
         $user->save();
 
         return response()->json([
-            'message'=> 'user updated successfully',
-            'user'=> $user
+            'message' => 'User updated successfully',
+            'user' => $user
         ]);
-
     }
 }
