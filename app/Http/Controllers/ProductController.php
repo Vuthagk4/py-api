@@ -78,16 +78,32 @@ class ProductController extends Controller
 
     public function search(Request $request)
     {
+        // 1. FIXED: Made 'name' nullable so users can search ONLY by price
         $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => 'nullable|string|max:255',
             'min_price' => 'nullable|numeric',
             'max_price' => 'nullable|numeric',
         ]);
 
-        $products = Product::where('name', 'like', '%' . $request->name . '%')
-            ->when($request->min_price, fn($q) => $q->where('price', '>=', $request->min_price))
-            ->when($request->max_price, fn($q) => $q->where('price', '<=', $request->max_price))
-            ->get();
+        // 2. FIXED: Build the query dynamically
+        $query = Product::query();
+
+        // Apply name filter only if a name was typed
+        if ($request->filled('name')) {
+            $query->where('name', 'like', '%' . $request->name . '%');
+        }
+
+        // Apply min_price filter only if a minimum price was entered
+        if ($request->filled('min_price')) {
+            $query->where('price', '>=', $request->min_price);
+        }
+
+        // Apply max_price filter only if a maximum price was entered
+        if ($request->filled('max_price')) {
+            $query->where('price', '<=', $request->max_price);
+        }
+
+        $products = $query->get();
 
         return response()->json($products);
     }
