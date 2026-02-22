@@ -18,31 +18,33 @@ class AddressResource extends Resource
     protected static ?string $model = Address::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?int $navigationSort = 5;
+
 
     public static function form(Form $form): Form
-{
-    return $form
-        ->schema([
-            // 🔥 ADD THIS: Select the User
-            Forms\Components\Select::make('user_id')
-                ->relationship('user', 'name') // Assumes Address belongsTo User
-                ->searchable()
-                ->required()
-                ->label('Customer'),
+    {
+        return $form
+            ->schema([
+                // 🔥 ADD THIS: Select the User
+                Forms\Components\Select::make('user_id')
+                    ->relationship('user', 'name') // Assumes Address belongsTo User
+                    ->searchable()
+                    ->required()
+                    ->label('Customer'),
 
-            // Your other address fields...
-            Forms\Components\TextInput::make('address')
-                ->required()
-                ->maxLength(255),
+                // Your other address fields...
+                Forms\Components\TextInput::make('address')
+                    ->required()
+                    ->maxLength(255),
 
-            Forms\Components\TextInput::make('city')
-                ->required()
-                ->maxLength(255),
-                
-            Forms\Components\TextInput::make('zip_code')
-                ->numeric(),
-        ]);
-}
+                Forms\Components\TextInput::make('city')
+                    ->required()
+                    ->maxLength(255),
+
+                Forms\Components\TextInput::make('zip_code')
+                    ->numeric(),
+            ]);
+    }
 
     public static function table(Table $table): Table
     {

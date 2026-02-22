@@ -9,13 +9,15 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Support\Str; 
+use Illuminate\Support\Str;
 
 class CategoryResource extends Resource
 {
     protected static ?string $model = Category::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-tag'; 
+    protected static ?string $navigationIcon = 'heroicon-o-tag';
+    protected static ?int $navigationSort = 3;
+
 
     public static function form(Form $form): Form
     {
@@ -28,7 +30,8 @@ class CategoryResource extends Resource
                             ->required()
                             ->maxLength(255)
                             ->live(onBlur: true)
-                            ->afterStateUpdated(fn (string $operation, $state, Forms\Set $set) => 
+                            ->afterStateUpdated(
+                                fn(string $operation, $state, Forms\Set $set) =>
                                 $operation === 'create' ? $set('slug', Str::slug($state)) : null
                             ),
 
