@@ -85,7 +85,6 @@ class ProductController extends Controller
             'max_price' => 'nullable|numeric',
         ]);
 
-        // 2. FIXED: Build the query dynamically
         $query = Product::query();
 
         // Apply name filter only if a name was typed
