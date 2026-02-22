@@ -11,6 +11,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Support\Str;
 
+
 class CategoryResource extends Resource
 {
     protected static ?string $model = Category::class;
@@ -25,31 +26,25 @@ class CategoryResource extends Resource
             ->schema([
                 Forms\Components\Section::make('Category Details')
                     ->schema([
-                        // 1. Name Field (Auto-generates Slug)
+                        // 1. Name Field
                         Forms\Components\TextInput::make('name')
                             ->required()
+<<<<<<< HEAD
                             ->maxLength(255)
                             ->live(onBlur: true)
                             ->afterStateUpdated(
                                 fn(string $operation, $state, Forms\Set $set) =>
                                 $operation === 'create' ? $set('slug', Str::slug($state)) : null
                             ),
+=======
+                            ->maxLength(255),
+>>>>>>> 079203d116323a858d705924f9665cc51e032f42
 
-                        // 2. Slug Field
-                        Forms\Components\TextInput::make('slug')
-                            ->required()
-                            ->maxLength(255)
-                            ->unique(Category::class, 'slug', ignoreRecord: true),
-
-                        // 3. Image Upload
-                        Forms\Components\FileUpload::make('image')
-                            ->image()
-                            ->directory('categories'),
-
-                        // 4. Active Status
-                        Forms\Components\Toggle::make('is_active')
-                            ->required()
-                            ->default(true),
+                        // 2. Description Field (Matches your API)
+                        Forms\Components\Textarea::make('description')
+                            ->required() // Remove this if description is nullable in your database
+                            ->maxLength(65535)
+                            ->columnSpanFull(),
                     ]),
             ]);
     }
@@ -58,20 +53,29 @@ class CategoryResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\ImageColumn::make('image'),
+                // ID Column
+                Tables\Columns\TextColumn::make('id')
+                    ->sortable()
+                    ->searchable(),
 
+                // Name Column
                 Tables\Columns\TextColumn::make('name')
                     ->searchable()
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('slug')
-                    ->searchable(),
+                // Description Column (Truncated for clean UI)
+                Tables\Columns\TextColumn::make('description')
+                    ->searchable()
+                    ->limit(50), 
 
-                Tables\Columns\IconColumn::make('is_active')
-                    ->boolean(),
-
-                // 🔥 FIXED: Uses 'created_at', not 'created_on'
+                // Created At Column
                 Tables\Columns\TextColumn::make('created_at')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: false),
+
+                // Updated At Column
+                Tables\Columns\TextColumn::make('updated_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -88,7 +92,6 @@ class CategoryResource extends Resource
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ])
-            // 🔥 CRITICAL FIX: Explicitly sort by created_at to avoid SQL errors
             ->defaultSort('created_at', 'desc');
     }
 
