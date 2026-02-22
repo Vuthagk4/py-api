@@ -15,6 +15,8 @@ class UserResource extends Resource
     protected static ?string $model = User::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-users';
+    protected static ?int $navigationSort = 6;
+
 
     public static function form(Form $form): Form
     {
@@ -31,8 +33,8 @@ class UserResource extends Resource
                 // Only show password field on creation or hide it for security
                 Forms\Components\TextInput::make('password')
                     ->password()
-                    ->required(fn (string $context): bool => $context === 'create')
-                    ->dehydrated(fn ($state) => filled($state)),
+                    ->required(fn(string $context): bool => $context === 'create')
+                    ->dehydrated(fn($state) => filled($state)),
             ]);
     }
 

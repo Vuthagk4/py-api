@@ -14,7 +14,9 @@ class OrderResource extends Resource
 {
     protected static ?string $model = Order::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-shopping-bag'; 
+    protected static ?string $navigationIcon = 'heroicon-o-shopping-bag';
+    protected static ?int $navigationSort = 4;
+
 
     public static function form(Form $form): Form
     {
@@ -41,7 +43,7 @@ class OrderResource extends Resource
                         Forms\Components\TextInput::make('total_amount')
                             ->numeric()
                             ->prefix('$')
-                            ->readOnly(), 
+                            ->readOnly(),
                     ])->columns(3),
 
                 // Section 2: Order Items (The Products)
@@ -52,23 +54,23 @@ class OrderResource extends Resource
                             ->schema([
                                 Forms\Components\Select::make('product_id')
                                     ->relationship('product', 'name')
-                                    ->disabled() 
+                                    ->disabled()
                                     ->label('Product'),
 
                                 Forms\Components\TextInput::make('quantity')
                                     ->numeric()
-                                    ->disabled() 
+                                    ->disabled()
                                     ->label('Qty'),
 
                                 Forms\Components\TextInput::make('price')
                                     ->numeric()
                                     ->prefix('$')
-                                    ->disabled() 
+                                    ->disabled()
                                     ->label('Unit Price'),
                             ])
                             ->columns(3)
-                            ->addable(false) 
-                            ->deletable(false) 
+                            ->addable(false)
+                            ->deletable(false)
                     ]),
             ]);
     }
@@ -88,11 +90,11 @@ class OrderResource extends Resource
 
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'PENDING' => 'warning',   
-                        'PROCESSING' => 'info',   
-                        'COMPLETED' => 'success', 
-                        'CANCELLED' => 'danger',  
+                    ->color(fn(string $state): string => match ($state) {
+                        'PENDING' => 'warning',
+                        'PROCESSING' => 'info',
+                        'COMPLETED' => 'success',
+                        'CANCELLED' => 'danger',
                         default => 'gray',
                     }),
 
@@ -101,13 +103,13 @@ class OrderResource extends Resource
                     ->sortable(),
 
                 // 🔥 FIXED: Changed 'created_on' to 'created_at'
-                Tables\Columns\TextColumn::make('created_at') 
+                Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             // 🔥 FIXED: Changed 'created_on' to 'created_at'
-            ->defaultSort('created_at', 'desc') 
+            ->defaultSort('created_at', 'desc')
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
                     ->options([
