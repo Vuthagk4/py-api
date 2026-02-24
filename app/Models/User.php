@@ -19,14 +19,21 @@ class User extends Authenticatable implements FilamentUser
         'name',
         'email',
         'password',
-        'avatar'
+        'avatar',
+        'role',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
     ];
+protected $casts = [
+        'email_verified_at' => 'datetime',
+        'password' => 'hashed',
+    ];
 
+    // 🔴 5. Add this method to restrict Filament Admin access
+    
     /**
      * Mobile App Fix: Full Avatar URL
      * Mobile apps need the full URL (http://...) to display images correctly.
@@ -53,7 +60,7 @@ class User extends Authenticatable implements FilamentUser
     public function canAccessPanel(Panel $panel): bool
     {
         // Allow login to Admin Panel
-        return true; 
+        return $this->role === 'admin';
     }
 
     protected function casts(): array

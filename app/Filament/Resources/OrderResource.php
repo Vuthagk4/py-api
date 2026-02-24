@@ -19,61 +19,71 @@ class OrderResource extends Resource
 
 
     public static function form(Form $form): Form
-    {
-        return $form
-            ->schema([
-                // Section 1: Order Information
-                Forms\Components\Section::make('Order Information')
-                    ->schema([
-                        Forms\Components\Select::make('user_id')
-                            ->relationship('user', 'name')
-                            ->searchable()
-                            ->required()
-                            ->label('Customer'),
+{
+    return $form
+        ->schema([
+            // Section 1: Order Information
+            Forms\Components\Section::make('Order Information')
+                ->schema([
+                    Forms\Components\Select::make('user_id')
+                        ->relationship('user', 'name')
+                        ->searchable()
+                        ->required()
+                        ->label('Customer'),
 
-                        Forms\Components\Select::make('status')
-                            ->options([
-                                'PENDING' => 'Pending',
-                                'PROCESSING' => 'Processing',
-                                'COMPLETED' => 'Completed',
-                                'CANCELLED' => 'Cancelled',
-                            ])
-                            ->required(),
+                    Forms\Components\Select::make('status')
+                        ->options([
+                            'PENDING' => 'Pending',
+                            'PROCESSING' => 'Processing',
+                            'COMPLETED' => 'Completed',
+                            'CANCELLED' => 'Cancelled',
+                        ])
+                        ->required(),
 
-                        Forms\Components\TextInput::make('total_amount')
-                            ->numeric()
-                            ->prefix('$')
-                            ->readOnly(),
-                    ])->columns(3),
+                    Forms\Components\TextInput::make('total_amount')
+                        ->numeric()
+                        ->prefix('$')
+                        ->readOnly(),
+                ])->columns(3),
 
-                // Section 2: Order Items (The Products)
-                Forms\Components\Section::make('Products Ordered')
-                    ->schema([
-                        Forms\Components\Repeater::make('items')
-                            ->relationship()
-                            ->schema([
-                                Forms\Components\Select::make('product_id')
-                                    ->relationship('product', 'name')
-                                    ->disabled()
-                                    ->label('Product'),
+            // Section 2: Order Items (The Products)
+            Forms\Components\Section::make('Products Ordered')
+                ->schema([
+                    Forms\Components\Repeater::make('items') // This refers to the OrderItems relationship
+                        ->relationship()
+                        ->schema([
+                            // 1. Show Product Name (via relationship)
+                            Forms\Components\Select::make('product_id')
+                                ->relationship('product', 'name')
+                                ->label('Product Name')
+                                ->disabled() // Read-only for checkout history
+                                ->columnSpan(2),
 
-                                Forms\Components\TextInput::make('quantity')
-                                    ->numeric()
-                                    ->disabled()
-                                    ->label('Qty'),
+                            // 2. Show Quantity
+                            Forms\Components\TextInput::make('quantity')
+                                ->numeric()
+                                ->label('Qty')
+                                ->disabled(),
 
-                                Forms\Components\TextInput::make('price')
-                                    ->numeric()
-                                    ->prefix('$')
-                                    ->disabled()
-                                    ->label('Unit Price'),
-                            ])
-                            ->columns(3)
-                            ->addable(false)
-                            ->deletable(false)
-                    ]),
-            ]);
-    }
+                            // 3. Show Price at time of purchase
+                            Forms\Components\TextInput::make('price')
+                                ->numeric()
+                                ->prefix('$')
+                                ->label('Unit Price')
+                                ->disabled(),
+                                
+                            // 4. Subtotal (Optional calculated field)
+                            Forms\Components\Placeholder::make('subtotal')
+                                ->label('Subtotal')
+                                ->content(fn ($get) => '$' . (number_format(($get('quantity') ?? 0) * ($get('price') ?? 0), 2))),
+                        ])
+                        ->columns(5) // Adjusted columns to fit subtotal
+                        ->addable(false)
+                        ->deletable(false)
+                        ->reorderable(false),
+                ]),
+        ]);
+}
 
     public static function table(Table $table): Table
     {

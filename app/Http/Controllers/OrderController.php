@@ -4,111 +4,95 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Models\Cart;
 use App\Models\Order;
 use App\Models\OrderItem;
-use Illuminate\Support\Facades\DB; // 🔥 Important for safety
+use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
 {
-    // 1. CHECKOUT (The "Two" Strategy)
+    // 1. CHECKOUT (Receives items directly from Flutter)
     public function checkout(Request $request)
     {
         $user = $request->user();
 
-        // Find the 'active' cart (don't pick up old completed ones)
-        $cart = Cart::where('user_id', $user->id)
-                    ->where('status', 'active') 
-                    ->with('items') 
-                    ->first();
+        // 1. Validate the direct payload from Flutter
+        $request->validate([
+            'total_amount' => 'required|numeric',
+            'items' => 'required|array|min:1',
+            'items.*.product_id' => 'required|integer',
+            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.price' => 'required|numeric',
+        ]);
 
-        if (!$cart || $cart->items->isEmpty()) {
-            return response()->json(['message' => "Cart is empty or not found"], 404);
-        }
-
-        // Start Transaction
-        return DB::transaction(function () use ($user, $cart, $request) {
-            
-            // Calculate total again to be safe
-            $totalAmount = $cart->items->sum(function($item) {
-                return $item->price * $item->quantity;
-            });
-
-            // A. Create the Order
-            $order = Order::create([
-                'user_id' => $user->id,
-                'cart_id' => $cart->id, // Link to Cart
-                'total_amount' => $totalAmount,
-                'status' => 'PENDING',
-                // Use address from request, or fallback to user's default if you have one
-                'address_id' => $request->address_id ?? null, 
-            ]);
-
-            // B. Copy Cart Items -> Order Items (The "Two" Strategy)
-            foreach ($cart->items as $item) {
-                OrderItem::create([
-                    'order_id' => $order->id,
-                    'product_id' => $item->product_id,
-                    'quantity' => $item->quantity,
-                    'price' => $item->price
+        try {
+            return DB::transaction(function () use ($user, $request) {
+                
+                // 2. Create the Order
+                $order = Order::create([
+                    'user_id'      => $user->id,
+                    'total_amount' => $request->total_amount,
+                    'status'       => 'PENDING', // Matches Filament warning badge
+                    'address_id'   => $request->address_id ?? null, 
                 ]);
-            }
 
-            // C. Close the Cart
-            $cart->update(['status' => 'completed']);
+                // 3. Save items to permanent OrderItems table
+                foreach ($request->items as $item) {
+                    OrderItem::create([
+                        'order_id'   => $order->id,
+                        'product_id' => $item['product_id'],
+                        'quantity'   => $item['quantity'],
+                        'price'      => $item['price']
+                    ]);
+                }
 
-            return response()->json([
-                'message' => "Order placed successfully",
-                'order' => $order->load('items') // Load the new items
-            ], 201);
-        });
+                // Return order ID so Flutter can immediately mark it as paid!
+                return response()->json([
+                    'message' => "Order placed successfully",
+                    'order_id' => $order->id,
+                ], 201);
+            });
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Checkout failed', 'error' => $e->getMessage()], 500);
+        }
     }
 
-    // 2. INDEX (View History)
+    // 2. MARK AS PAID (Call this after Bakong Success in Flutter)
+    public function markAsPaid($id)
+    {
+        $order = Order::findOrFail($id);
+        
+        // Update to COMPLETED so Filament turns the badge GREEN
+        $order->update(['status' => 'COMPLETED']);
+
+        return response()->json([
+            'message' => "Payment confirmed",
+            'order'   => $order
+        ], 200);
+    }
+
+    // 3. INDEX (For Flutter Order History)
     public function index(Request $request)
     {
-        // Load BOTH the old cart and the permanent order items
         $orders = Order::where('user_id', $request->user()->id)
-                    ->with(['cart', 'items.product']) 
+                    ->with(['items.product']) 
                     ->latest()
                     ->get();
 
-        return response()->json($orders, 200);
-    }
-
-    // 3. STORE (Manual Creation - Optional)
-    public function store(Request $request)
-    {
-        $request->validate([
-            'total_amount' => 'required|numeric',
-            'status' => 'required|string|in:pending,completed,cancelled',
-            'user_id' => 'required|exists:users,id',
-            // 'items' => 'required|array' // Make sure you validate items exist
-        ]);
-
-        return DB::transaction(function () use ($request) {
-            $order = Order::create([
-                'user_id' => $request->user_id,
-                'total_amount' => $request->total_amount,
-                'status' => $request->status,
-                'shipping_address' => $request->shipping_address ?? 'Default Address',
-            ]);
-
-            if ($request->items) {
-                foreach($request->items as $item) {
-                    OrderItem::create([
-                        'order_id' => $order->id,
-                        'product_id' => $item['product_id'],
-                        'quantity' => $item['quantity'],
-                        'price' => $item['price'],
-                    ]);
+        // 🔴 CRITICAL FIX: Format Product Image URLs so they load in the Flutter app!
+        $orders->map(function ($order) {
+            $order->items->map(function ($item) {
+                if ($item->product) {
+                    if ($item->product->image && $item->product->image !== 'default.jpg' && !str_starts_with($item->product->image, 'http')) {
+                        $item->product->image = asset('storage/' . $item->product->image);
+                    } else if (!$item->product->image || $item->product->image === 'default.jpg') {
+                        $item->product->image = asset('storage/products/default.jpg');
+                    }
                 }
-            }
-
-            return response()->json([
-                'message' => "Order created successfully",
-                'order' => $order->load('items')
-            ], 201);
+                return $item;
+            });
+            return $order;
         });
+
+        return response()->json($orders, 200);
     }
 }

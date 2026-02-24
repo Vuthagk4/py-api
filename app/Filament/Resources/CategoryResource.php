@@ -29,16 +29,13 @@ class CategoryResource extends Resource
                         // 1. Name Field
                         Forms\Components\TextInput::make('name')
                             ->required()
-<<<<<<< HEAD
                             ->maxLength(255)
-                            ->live(onBlur: true)
-                            ->afterStateUpdated(
-                                fn(string $operation, $state, Forms\Set $set) =>
-                                $operation === 'create' ? $set('slug', Str::slug($state)) : null
-                            ),
-=======
-                            ->maxLength(255),
->>>>>>> 079203d116323a858d705924f9665cc51e032f42
+                            ->reactive()
+                            ->afterStateUpdated(function (callable $set, ?string $state) {
+                                // Auto-generate slug from name
+
+                                $set('slug', Str::slug($state));
+                            }),
 
                         // 2. Description Field (Matches your API)
                         Forms\Components\Textarea::make('description')

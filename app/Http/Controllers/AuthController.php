@@ -17,11 +17,10 @@ class AuthController extends Controller
             'avatar' => 'nullable|image|mimes:jpg,jpeg,png|max:2048'
         ]);
 
-        $avatarPath = 'default.jpg'; // Default value from your Navicat SQL
+        $avatarPath = 'default.jpg';
 
         if ($request->hasFile('avatar')) {
             $image = $request->file('avatar');
-            // Store in storage/app/public/users
             $avatarPath = Storage::disk('public')->put('users', $image);
         }
 
@@ -29,12 +28,11 @@ class AuthController extends Controller
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'avatar' => $avatarPath // Save the path string
+            'avatar' => $avatarPath,
+            'role' => 'user' // Forces mobile registrations to be users
         ]);
         
-        return response()->json([
-            'message' => 'User created successfully',
-        ], 200);
+        return response()->json(['message' => 'User created successfully'], 200);
     }
 
     public function login(Request $request) {
@@ -49,12 +47,16 @@ class AuthController extends Controller
             return response()->json(['message' => 'Invalid credentials'], 401);
         }
 
+        // Blocks admins from logging into the mobile API
+        if ($user->role === 'admin') {
+            return response()->json(['message' => 'Admins must use the web panel.'], 403);
+        }
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        // Ensure the avatar shows the full URL in the response
-        if ($user->avatar && $user->avatar !== 'default.jpg') {
+        if ($user->avatar && $user->avatar !== 'default.jpg' && !str_starts_with($user->avatar, 'http')) {
             $user->avatar = asset('storage/' . $user->avatar);
-        } else {
+        } else if (!$user->avatar || $user->avatar === 'default.jpg') {
             $user->avatar = asset('storage/users/default.jpg');
         }
 
@@ -72,11 +74,17 @@ class AuthController extends Controller
     public function update(Request $request) {
         $user = $request->user();
 
+        $request->validate([
+            'name' => 'nullable|string|max:255',
+            'email' => 'nullable|string|email|unique:users,email,'.$user->id,
+            'password' => 'nullable|string|min:6',
+            'avatar' => 'nullable|image|mimes:jpg,jpeg,png|max:2048'
+        ]);
+
         if ($request->hasFile('avatar')) {
             $image = $request->file('avatar');
             $path = Storage::disk('public')->put('users', $image);
             
-            // Delete old avatar if it's not the default
             if ($user->avatar && $user->avatar !== 'default.jpg' && Storage::disk('public')->exists($user->avatar)) {
                 Storage::disk('public')->delete($user->avatar);
             }
@@ -87,12 +95,21 @@ class AuthController extends Controller
             $user->password = Hash::make($request->password);
         }
 
-        // Only update name if it is provided in the request
         if ($request->name) {
             $user->name = $request->name;
         }
+
+        if ($request->email) {
+            $user->email = $request->email;
+        }
     
         $user->save();
+
+        if ($user->avatar && $user->avatar !== 'default.jpg' && !str_starts_with($user->avatar, 'http')) {
+            $user->avatar = asset('storage/' . $user->avatar);
+        } else if (!$user->avatar || $user->avatar === 'default.jpg') {
+            $user->avatar = asset('storage/users/default.jpg');
+        }
 
         return response()->json([
             'message' => 'User updated successfully',

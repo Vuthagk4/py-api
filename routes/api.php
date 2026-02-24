@@ -1,56 +1,70 @@
 <?php
 
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\CartController;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AddressController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\NotificationController;
 
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
+// ==========================================
+// 🟢 PUBLIC ROUTES (No login required)
+// ==========================================
 
-Route::post('register',[AuthController::class,'register']);
-Route::post('login',[AuthController::class,'login']);
-Route::post('logout',[AuthController::class,'logout'])->middleware('auth:sanctum');
-Route::post('user/update',[AuthController::class,'update'])->middleware('auth:sanctum');
+// Authentication
+Route::post('register', [AuthController::class, 'register']);
+Route::post('login', [AuthController::class, 'login']);
 
-//categories 
-
-Route::get('categories',[CategoryController::class,'index']);
-Route::post('category',[CategoryController::class,'store']);
-Route::put('category/{id}',[CategoryController::class,'update']);
-Route::delete('category/{id}',[CategoryController::class,'destroy']);
+// Catalog (Browsing the store)
+Route::get('categories', [CategoryController::class, 'index']);
+Route::get('products', [ProductController::class, 'index']);
+Route::get('product-cate/{id}', [ProductController::class, 'getProductByCate']);
+Route::get('product-search', [ProductController::class, 'search']);
 
 
+// ==========================================
+// 🔴 SECURED ROUTES (Login required)
+// ==========================================
+Route::middleware('auth:sanctum')->group(function () {
+    
+    // User Profile
+    Route::get('/user', function (Request $request) {
+        return $request->user();
+    });
+    Route::post('logout', [AuthController::class, 'logout']);
+    Route::post('user/update', [AuthController::class, 'update']);
 
-//products 
-Route::post('product',[ProductController::class,'store']);
-Route::get('products',[ProductController::class,'index']);
-Route::get('product-cate/{id}',[ProductController::class,'getProductByCate']);
-Route::get('product-search',[ProductController::class,'search']);
+    // Carts (Using DELETE for removals is better REST practice)
+    Route::post('cart', [CartController::class, 'addToCart']);
+    Route::get('viewCart', [CartController::class, 'viewCart']);
+    Route::delete('remove-cart-item/{proId}', [CartController::class, 'removeFromCart']);
+    Route::delete('cart/clear', [CartController::class, 'clearCart']);
 
-//carts 
-Route::post('cart',[CartController::class,'addToCart'])->middleware('auth:sanctum');
-Route::get('viewCart',[CartController::class,'viewCart'])->middleware('auth:sanctum');
-Route::post('remove-cart-item/{proId}',[CartController::class,'removeFromCart'])->middleware('auth:sanctum');
-Route::post('cart/clear',[CartController::class,'clearCart'])->middleware('auth:sanctum');
+    // Addresses
+    Route::post('address', [AddressController::class, 'store']);
+    Route::get('address', [AddressController::class, 'index']);
+    Route::put('address/{id}', [AddressController::class, 'update']);
+    Route::delete('address/{id}', [AddressController::class, 'destroy']);
 
-//addresses
-Route::post('address',[AddressController::class,'store'])->middleware('auth:sanctum');
-Route::put('address/{id}',[AddressController::class,'update'])->middleware('auth:sanctum');
-Route::get('address',[AddressController::class,'index'])->middleware('auth:sanctum');
-Route::delete('address/{id}',[AddressController::class,'destroy'])->middleware('auth:sanctum');
+    // Orders
+    Route::get('orders', [OrderController::class, 'index']);
+    Route::post('order/checkout', [OrderController::class, 'checkout']);
+    Route::post('orders/{id}/pay', [OrderController::class, 'markAsPaid']); // Added for Bakong payment success
 
-//orders 
-Route::post('order',[OrderController::class,'store'])->middleware('auth:sanctum');
-Route::get('orders',[OrderController::class,'index'])->middleware('auth:sanctum');
-Route::post('order/checkout',[OrderController::class,'checkout'])->middleware('auth:sanctum');
+    // Notifications
+    Route::post('/send-notification', [NotificationController::class, 'sendNotification']);
+    Route::post('/send-notification-topic', [NotificationController::class, 'sendToTopic']);
 
-Route::post('/send-notification', [NotificationController::class, 'sendNotification']);
-Route::post('/send-notification-topic', [NotificationController::class, 'sendToTopic']);
-
+    // ==========================================
+    // ⚠️ ADMIN DATA MANAGEMENT ⚠️
+    // Since you use Filament, you actually don't need these routes for the mobile app!
+    // But if you keep them, they MUST be inside this secure group.
+    // ==========================================
+    Route::post('category', [CategoryController::class, 'store']);
+    Route::put('category/{id}', [CategoryController::class, 'update']);
+    Route::delete('category/{id}', [CategoryController::class, 'destroy']);
+    Route::post('product', [ProductController::class, 'store']);
+});
