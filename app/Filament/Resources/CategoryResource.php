@@ -10,7 +10,8 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Support\Str;
-
+use Illuminate\Database\Eloquent\Builder; // 🟢 Added
+use Illuminate\Database\Eloquent\Model;   // 🟢 Added
 
 class CategoryResource extends Resource
 {
@@ -19,6 +20,21 @@ class CategoryResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-tag';
     protected static ?int $navigationSort = 3;
 
+    /**
+     * SECURITY: This ensures Shopkeepers only see their own categories in the list.
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        $user = auth()->user();
+
+        // Admin sees all categories from everyone
+        if ($user->role === 'admin' || $user->email === 'admin@me.com') {
+            return parent::getEloquentQuery();
+        }
+
+        // Shopkeepers only see categories where shopkeeper_id matches their ID
+        return parent::getEloquentQuery()->where('shopkeeper_id', $user->shopkeeper?->id);
+    }
 
     public static function form(Form $form): Form
     {
@@ -26,20 +42,22 @@ class CategoryResource extends Resource
             ->schema([
                 Forms\Components\Section::make('Category Details')
                     ->schema([
-                        // 1. Name Field
                         Forms\Components\TextInput::make('name')
                             ->required()
                             ->maxLength(255)
-                            ->reactive()
-                            ->afterStateUpdated(function (callable $set, ?string $state) {
-                                // Auto-generate slug from name
-
+                            ->live(onBlur: true) 
+                            ->afterStateUpdated(function (Forms\Set $set, ?string $state) {
                                 $set('slug', Str::slug($state));
                             }),
 
-                        // 2. Description Field (Matches your API)
+                        // 🟢 Automatically link to the current Shopkeeper
+                        Forms\Components\Hidden::make('shopkeeper_id')
+                            ->default(fn () => auth()->user()->shopkeeper?->id),
+
+                        
+
                         Forms\Components\Textarea::make('description')
-                            ->required() // Remove this if description is nullable in your database
+                            ->required()
                             ->maxLength(65535)
                             ->columnSpanFull(),
                     ]),
@@ -50,35 +68,30 @@ class CategoryResource extends Resource
     {
         return $table
             ->columns([
-                // ID Column
-                Tables\Columns\TextColumn::make('id')
-                    ->sortable()
-                    ->searchable(),
-
-                // Name Column
                 Tables\Columns\TextColumn::make('name')
                     ->searchable()
                     ->sortable(),
 
-                // Description Column (Truncated for clean UI)
+                // 🟢 Show which Shop owns this category (Visible to Admin)
+                Tables\Columns\TextColumn::make('shopkeeper.shop_name')
+                    ->label('Owner Shop')
+                    ->visible(fn () => auth()->user()->role === 'admin')
+                    ->badge(),
+
                 Tables\Columns\TextColumn::make('description')
                     ->searchable()
                     ->limit(50), 
 
-                // Created At Column
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: false),
-
-                // Updated At Column
-                Tables\Columns\TextColumn::make('updated_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                //
+                // Allow Admin to filter categories by shop
+                Tables\Filters\SelectFilter::make('shopkeeper')
+                    ->relationship('shopkeeper', 'shop_name')
+                    ->visible(fn () => auth()->user()->role === 'admin'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
@@ -90,13 +103,6 @@ class CategoryResource extends Resource
                 ]),
             ])
             ->defaultSort('created_at', 'desc');
-    }
-
-    public static function getRelations(): array
-    {
-        return [
-            //
-        ];
     }
 
     public static function getPages(): array

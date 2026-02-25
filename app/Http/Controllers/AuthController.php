@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Auth;
 
 class AuthController extends Controller
 {
@@ -17,22 +18,29 @@ class AuthController extends Controller
             'avatar' => 'nullable|image|mimes:jpg,jpeg,png|max:2048'
         ]);
 
-        $avatarPath = 'default.jpg';
+        $avatarPath = 'users/default.jpg';
 
         if ($request->hasFile('avatar')) {
             $image = $request->file('avatar');
             $avatarPath = Storage::disk('public')->put('users', $image);
         }
 
-        User::create([
+        // 🟢 FIXED: Removed Hash::make() because the User model hashes it via 'casts'
+        $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
-            'password' => Hash::make($request->password),
+            'password' => $request->password, 
             'avatar' => $avatarPath,
-            'role' => 'user' // Forces mobile registrations to be users
+            'role' => 'user' 
         ]);
+
+        $token = $user->createToken('auth_token')->plainTextToken;
         
-        return response()->json(['message' => 'User created successfully'], 200);
+        return response()->json([
+            'message' => 'User created successfully',
+            'token' => $token,
+            'user' => $this->formatUserAvatar($user)
+        ], 201);
     }
 
     public function login(Request $request) {
@@ -43,31 +51,26 @@ class AuthController extends Controller
         
         $user = User::where('email', $request->email)->first();
 
+        // 🟢 Hash::check still works perfectly with the 'hashed' cast
         if (!$user || !Hash::check($request->password, $user->password)) {
             return response()->json(['message' => 'Invalid credentials'], 401);
         }
 
-        // Blocks admins from logging into the mobile API
-        if ($user->role === 'admin') {
-            return response()->json(['message' => 'Admins must use the web panel.'], 403);
+        // 🟢 Logic Improvement: Block both Admin and Shopkeepers from mobile login
+        if (in_array($user->role, ['admin', 'shopkeeper'])) {
+            return response()->json(['message' => 'Staff must use the web management panel.'], 403);
         }
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        if ($user->avatar && $user->avatar !== 'default.jpg' && !str_starts_with($user->avatar, 'http')) {
-            $user->avatar = asset('storage/' . $user->avatar);
-        } else if (!$user->avatar || $user->avatar === 'default.jpg') {
-            $user->avatar = asset('storage/users/default.jpg');
-        }
-
         return response()->json([
             'token' => $token,
-            'user' => $user
+            'user' => $this->formatUserAvatar($user)
         ]);
     }
 
     public function logout(Request $request) {
-        $request->user()->tokens()->delete();
+        $request->user()->currentAccessToken()->delete(); 
         return response()->json(['message' => "Logout successfully"]);
     }
 
@@ -82,38 +85,29 @@ class AuthController extends Controller
         ]);
 
         if ($request->hasFile('avatar')) {
-            $image = $request->file('avatar');
-            $path = Storage::disk('public')->put('users', $image);
-            
-            if ($user->avatar && $user->avatar !== 'default.jpg' && Storage::disk('public')->exists($user->avatar)) {
+            if ($user->avatar && !str_contains($user->avatar, 'default.jpg')) {
                 Storage::disk('public')->delete($user->avatar);
             }
-            $user->avatar = $path;
+            $user->avatar = Storage::disk('public')->put('users', $request->file('avatar'));
         }
 
-        if ($request->password) {
-            $user->password = Hash::make($request->password);
-        }
-
-        if ($request->name) {
-            $user->name = $request->name;
-        }
-
-        if ($request->email) {
-            $user->email = $request->email;
-        }
+        // 🟢 FIXED: Removed Hash::make() here as well
+        if ($request->password) $user->password = $request->password;
+        if ($request->name) $user->name = $request->name;
+        if ($request->email) $user->email = $request->email;
     
         $user->save();
 
-        if ($user->avatar && $user->avatar !== 'default.jpg' && !str_starts_with($user->avatar, 'http')) {
-            $user->avatar = asset('storage/' . $user->avatar);
-        } else if (!$user->avatar || $user->avatar === 'default.jpg') {
-            $user->avatar = asset('storage/users/default.jpg');
-        }
-
         return response()->json([
             'message' => 'User updated successfully',
-            'user' => $user
+            'user' => $this->formatUserAvatar($user)
         ]);
+    }
+
+    private function formatUserAvatar($user) {
+        if ($user->avatar && !str_starts_with($user->avatar, 'http')) {
+            $user->avatar = asset('storage/' . $user->avatar);
+        }
+        return $user;
     }
 }

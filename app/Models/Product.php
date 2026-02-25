@@ -10,34 +10,33 @@ class Product extends Model
 {
     use HasFactory;
 
-
-
     protected $fillable = [
         'name',
         'description',
         'price',
         'image',
         'is_featured',
-        'category_id'
+        'category_id',
+        'shopkeeper_id', // 🟢 Fixed: Added missing comma
+        'quantity',      // 🟢 Changed from 'stock' to 'quantity' to match your DB
     ];
 
     /**
      * Accessor for the Image URL.
-     * This ensures Filament and your API always get the full path.
+     * Ensures consistent paths for both Filament and the API.
      */
     public function getImageAttribute($value)
-{
-    if (!$value) {
-        return asset('storage/products/default.jpg');
-    }
+    {
+        if (!$value) {
+            return asset('storage/products/default.jpg');
+        }
 
-    // 🔥 Prevents the "Double/Triple URL" crash on the home screen
-    if (str_starts_with($value, 'http')) {
-        return $value;
-    }
+        if (str_starts_with($value, 'http')) {
+            return $value;
+        }
 
-    return asset('storage/' . $value);
-}
+        return asset('storage/' . $value);
+    }
 
     /**
      * Relationship to Category.
@@ -46,4 +45,13 @@ class Product extends Model
     {
         return $this->belongsTo(Category::class, 'category_id');
     }
+
+    /**
+     * Relationship to Shopkeeper owner.
+     */
+    public function shopkeeper(): BelongsTo
+    {
+        return $this->belongsTo(Shopkeeper::class);
+    }
+    
 }

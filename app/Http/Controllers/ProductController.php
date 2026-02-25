@@ -52,17 +52,23 @@ class ProductController extends Controller
 
     public function index()
     {
-        $categories = Category::with(['products'])->latest()->get(['id', 'name']);
 
+        // 🟢 Loads Categories -> Products -> Shopkeeper nested data
+        $categories = Category::with(['products.shopkeeper'])->get();
+
+        // 🟢 Loads Featured Products and their Shopkeeper
         $featuredProducts = Product::where('is_featured', 1)
-            ->limit(5)
-            ->get(['id', 'name', 'description', 'price', 'image']);
+            ->with('shopkeeper')
+            ->latest()
+            ->get();
 
         return response()->json([
             'success' => true,
             'categories' => $categories,
             'featuredProducts' => $featuredProducts
-        ]);
+        ], 200);
+
+
     }
 
     public function getProductByCate($cateId)

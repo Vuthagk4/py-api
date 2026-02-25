@@ -9,32 +9,69 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
 class UserResource extends Resource
 {
     protected static ?string $model = User::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-users';
-    protected static ?int $navigationSort = 6;
+    protected static ?string $navigationLabel = 'Customers';
+    protected static ?string $modelLabel = 'Customer';
 
+    /**
+     * SECURITY: Filter the list so Shopkeepers only see 'user' role accounts 
+     * who have purchased from their specific shop.
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        $user = auth()->user();
+
+        // Admin sees everyone
+        if ($user->role === 'admin' || $user->email === 'admin@me.com') {
+            return parent::getEloquentQuery();
+        }
+
+        // Shopkeepers ONLY see 'user' role accounts linked via orders
+        return parent::getEloquentQuery()
+            ->where('role', 'user') 
+            ->whereHas('orders', function ($query) use ($user) {
+                $query->where('shopkeeper_id', $user->shopkeeper?->id);
+            });
+    }
+
+    /**
+     * PERMISSIONS: Disable Create, Edit, and Delete for Shopkeepers.
+     */
+    public static function canCreate(): bool
+    {
+        return auth()->user()->role === 'admin';
+    }
+
+    public static function canEdit(Model $record): bool
+    {
+        return auth()->user()->role === 'admin';
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        return auth()->user()->role === 'admin';
+    }
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                Forms\Components\TextInput::make('name')
-                    ->required(),
-                Forms\Components\TextInput::make('email')
-                    ->email()
-                    ->required(),
-                Forms\Components\FileUpload::make('avatar')
-                    ->image()
-                    ->directory('avatars'),
-                // Only show password field on creation or hide it for security
-                Forms\Components\TextInput::make('password')
-                    ->password()
-                    ->required(fn(string $context): bool => $context === 'create')
-                    ->dehydrated(fn($state) => filled($state)),
+                Forms\Components\TextInput::make('name')->required(),
+                Forms\Components\TextInput::make('email')->email()->required(),
+                Forms\Components\Select::make('role')
+                    ->options([
+                        'user' => 'User',
+                        'shopkeeper' => 'Shopkeeper',
+                        'admin' => 'Admin',
+                    ])
+                    ->visible(fn () => auth()->user()->role === 'admin'),
             ]);
     }
 
@@ -42,34 +79,16 @@ class UserResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\ImageColumn::make('avatar')
-                    ->circular(),
-                Tables\Columns\TextColumn::make('name')
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('email')
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('created_on')
-                    ->dateTime()
-                    ->sortable(),
-            ])
-            ->filters([
-                //
+                Tables\Columns\TextColumn::make('name')->searchable(),
+                Tables\Columns\TextColumn::make('email')->searchable(),
+                Tables\Columns\TextColumn::make('role')->badge(),
             ])
             ->actions([
+                // Added ViewAction so Shopkeepers can still see details in read-only mode
+                Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
-            ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
+                Tables\Actions\DeleteAction::make(),
             ]);
-    }
-
-    public static function getRelations(): array
-    {
-        return [
-            //
-        ];
     }
 
     public static function getPages(): array

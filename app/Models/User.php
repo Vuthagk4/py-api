@@ -5,69 +5,102 @@ namespace App\Models;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable implements FilamentUser
 {
-    use HasFactory, Notifiable, HasApiTokens;
-    // app/Models/User.php
-
+    // Use standard traits for API and authentication
+    use HasApiTokens, HasFactory, Notifiable;
 
     protected $fillable = [
         'name',
         'email',
         'password',
         'avatar',
-        'role',
+        'role', // Required for role-based access
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
     ];
-protected $casts = [
-        'email_verified_at' => 'datetime',
-        'password' => 'hashed',
-    ];
 
-    // 🔴 5. Add this method to restrict Filament Admin access
-    
     /**
-     * Mobile App Fix: Full Avatar URL
-     * Mobile apps need the full URL (http://...) to display images correctly.
+     * Relationship: A user can own a shop.
      */
-    public function getAvatarAttribute($value)
-{
-    // 1. If empty, give default
-    if (!$value || $value === 'default.jpg') {
-        return asset('storage/default.jpg');
+    public function shopkeeper(): HasOne
+    {
+        return $this->hasOne(Shopkeeper::class);
     }
-
-    // 2. 🔥 THIS STOPS THE LOOP: If it already starts with http, don't touch it!
-    if (str_starts_with($value, 'http')) {
-        return $value;
-    }
-
-    // 3. Otherwise, add storage prefix
-    return asset('storage/' . $value);
-}
 
     /**
-     * Filament Admin Access
+     * Relationship: A user can place many orders.
+     */
+    public function orders(): HasMany
+    {
+        return $this->hasMany(Order::class);
+    }
+
+    /**
+     * Security: Determine who can enter the Filament Admin Panel.
+     * Prevents normal 'user' roles from accessing the backend.
      */
     public function canAccessPanel(Panel $panel): bool
     {
-        // Allow login to Admin Panel
-        return $this->role === 'admin';
+        return in_array($this->role, ['admin', 'shopkeeper']);
     }
 
+    /**
+     * Helper to check if the user is a seller.
+     */
+    public function isShopkeeper(): bool
+    {
+        return $this->role === 'shopkeeper' || $this->shopkeeper()->exists();
+    }
+
+    /**
+     * Accessor: Formats the Avatar URL for Flutter.
+     * Ensures the app always gets a full URL for the image.
+     */
+    public function getAvatarAttribute($value)
+    {
+        if (!$value || $value === 'default.jpg' || $value === 'users/default.jpg') {
+            return asset('storage/users/default.jpg');
+        }
+
+        return str_starts_with($value, 'http') ? $value : asset('storage/' . $value);
+    }
+
+    /**
+     * Modern Laravel Hashing.
+     * Automatically hashes passwords when saved.
+     */
     protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
-            'password' => 'hashed',
+            'password' => 'hashed', 
         ];
+    }
+
+    /**
+     * Relationship: Connects a Shopkeeper to their customers via Orders.
+     * Used for the "Total Customers" dashboard widget.
+     */
+    public function customers(): HasManyThrough
+    {
+        return $this->hasManyThrough(
+            User::class, 
+            Order::class, 
+            'shopkeeper_id', // Foreign key on Order table
+            'id',            // Foreign key on User table
+            'id',            // Local key on User table
+            'user_id'        // Local key on Order table
+        );
     }
 }
