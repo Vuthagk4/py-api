@@ -43,7 +43,8 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Widgets\StatsOverview::class,
                 \App\Filament\Widgets\LatestOrders::class,
                 \App\Filament\Widgets\LowStockProducts::class,
-
+                // 🟢 Add your new widget here!
+                \App\Filament\Widgets\TrendingProductsChart::class,
             ])
             ->middleware([
                 EncryptCookies::class,
