@@ -1,20 +1,21 @@
 <?php
 
-
 namespace App\Filament\Resources\UserResource\Widgets;
 
 use App\Models\User;
 use Filament\Tables;
 use Filament\Tables\Table;
 use App\Filament\Resources\UserResource;
-
-
+// 1. Corrected these imports
+use Filament\Forms;
+use Filament\Forms\Components\Section;
 use Filament\Widgets\TableWidget as BaseWidget;
 
 class NormalUsersTable extends BaseWidget
 {
     protected static ?string $heading = 'Normal Users';
     protected int|string|array $columnSpan = 'full';
+
     public function table(Table $table): Table
     {
         return $table
@@ -25,14 +26,18 @@ class NormalUsersTable extends BaseWidget
                 Tables\Columns\TextColumn::make('role')->badge(),
             ])
             ->actions([
-                // 🟢 This is your "Permission Menu" action
                 Tables\Actions\Action::make('permissions')
                     ->label('Permission')
                     ->icon('heroicon-o-shield-check')
                     ->color('success')
-                    // This opens a modal with the toggles directly in the table
+                    ->mountUsing(fn(Forms\ComponentContainer $form, User $record) => $form->fill([
+                        'can_manage_products' => $record->can_manage_products,
+                        'can_manage_categories' => $record->can_manage_categories,
+                        'can_manage_orders' => $record->can_manage_orders,
+                    ]))
                     ->form([
-                        Forms\Components\Section::make('Feature Access')
+                        // 2. Using the imported Section class directly
+                        Section::make('Feature Access')
                             ->description('Enable or disable menus for this shopkeeper')
                             ->schema([
                                 Forms\Components\Toggle::make('can_manage_products')

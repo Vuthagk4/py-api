@@ -27,37 +27,44 @@ class CategoryResource extends Resource
     {
         $user = auth()->user();
 
-        // Admin sees all categories from everyone
+        // 1. If Admin, show everything
         if ($user->role === 'admin' || $user->email === 'admin@me.com') {
             return parent::getEloquentQuery();
         }
 
-        // Shopkeepers only see categories where shopkeeper_id matches their ID
-        return parent::getEloquentQuery()->where('shopkeeper_id', $user->shopkeeper?->id);
-    }
+        // 2. For Shopkeepers, get their specific ID
+        $shopkeeperId = $user->shopkeeper?->id;
 
+        // 3. If they are a shopkeeper but have no shop record, show NOTHING
+        if (!$shopkeeperId) {
+            return parent::getEloquentQuery()->whereRaw('1 = 0');
+        }
+
+        // 4. Filter only categories belonging to THIS shopkeeper
+        return parent::getEloquentQuery()->where('shopkeeper_id', $shopkeeperId);
+    }
 
     //hide
-public static function shouldRegisterNavigation(): bool
-{
-    $user = auth()->user();
+    public static function shouldRegisterNavigation(): bool
+    {
+        $user = auth()->user();
 
-    // Admin never sees these
-    if ($user->role === 'admin') return false;
+        // Admin never sees these
+        if ($user->role === 'admin') return false;
 
-    // 🟢 DYNAMIC CHECK: Check if the Admin enabled this feature for the Shopkeeper
-    if ($user->role === 'shopkeeper') {
-        return match (static::class) {
-            ProductResource::class => (bool) $user->can_manage_products,
-            OrderResource::class => (bool) $user->can_manage_orders,
-            CategoryResource::class => (bool) $user->can_manage_categories,
-            AddressResource::class => (bool) $user->can_manage_address,
-            default => true,
-        };
+        // 🟢 DYNAMIC CHECK: Check if the Admin enabled this feature for the Shopkeeper
+        if ($user->role === 'shopkeeper') {
+            return match (static::class) {
+                ProductResource::class => (bool) $user->can_manage_products,
+                OrderResource::class => (bool) $user->can_manage_orders,
+                CategoryResource::class => (bool) $user->can_manage_categories,
+                AddressResource::class => (bool) $user->can_manage_address,
+                default => true,
+            };
+        }
+
+        return false;
     }
-
-    return false;
-}
     //
     public static function form(Form $form): Form
     {

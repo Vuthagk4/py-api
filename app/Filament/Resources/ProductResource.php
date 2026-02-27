@@ -29,26 +29,26 @@ class ProductResource extends Resource
     }
 
     //hide
- public static function shouldRegisterNavigation(): bool
-{
-    $user = auth()->user();
+    public static function shouldRegisterNavigation(): bool
+    {
+        $user = auth()->user();
 
-    // Admin never sees these
-    if ($user->role === 'admin') return false;
+        // Admin never sees these
+        if ($user->role === 'admin') return false;
 
-    // 🟢 DYNAMIC CHECK: Check if the Admin enabled this feature for the Shopkeeper
-    if ($user->role === 'shopkeeper') {
-        return match (static::class) {
-            ProductResource::class => (bool) $user->can_manage_products,
-            OrderResource::class => (bool) $user->can_manage_orders,
-            CategoryResource::class => (bool) $user->can_manage_categories,
-            AddressResource::class => (bool) $user->can_manage_address,
-            default => true,
-        };
+        // 🟢 DYNAMIC CHECK: Check if the Admin enabled this feature for the Shopkeeper
+        if ($user->role === 'shopkeeper') {
+            return match (static::class) {
+                ProductResource::class => (bool) $user->can_manage_products,
+                OrderResource::class => (bool) $user->can_manage_orders,
+                CategoryResource::class => (bool) $user->can_manage_categories,
+                AddressResource::class => (bool) $user->can_manage_address,
+                default => true,
+            };
+        }
+
+        return false;
     }
-
-    return false;
-}
 
 
 
@@ -65,7 +65,12 @@ class ProductResource extends Resource
                             ->maxLength(50),
 
                         Forms\Components\Select::make('category_id')
-                            ->relationship('category', 'name')
+                            ->relationship(
+                                name: 'category',
+                                titleAttribute: 'name',
+                                // 🟢 ADD THIS MODIFY QUERY:
+                                modifyQueryUsing: fn(Builder $query) => $query->where('shopkeeper_id', auth()->user()->shopkeeper?->id)
+                            )
                             ->required()
                             ->searchable()
                             ->preload(),
