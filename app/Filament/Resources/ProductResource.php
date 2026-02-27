@@ -3,34 +3,28 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\ProductResource\Pages;
-use App\Models\Product; // Ensure this is here
+use App\Models\Product;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Filament\Forms\Components\Toggle;
+use Filament\Tables\Columns\IconColumn;
 
 class ProductResource extends Resource
 {
     protected static ?string $model = Product::class;
-
     protected static ?string $navigationIcon = 'heroicon-o-shopping-bag';
     protected static ?int $navigationSort = 2;
 
-    /**
-     * SECURITY: Scopes the query so Shopkeepers only see their own products.
-     */
     public static function getEloquentQuery(): Builder
     {
         $user = auth()->user();
-
-        // Admin can see everything
         if ($user->role === 'admin' || $user->email === 'admin@me.com') {
             return parent::getEloquentQuery();
         }
-
-        // Shopkeepers only see their linked products
         return parent::getEloquentQuery()->where('shopkeeper_id', $user->shopkeeper?->id);
     }
 
@@ -55,14 +49,19 @@ class ProductResource extends Resource
                             ->prefix('$')
                             ->required(),
 
+                        // --- FEATURED TOGGLE ADDED HERE ---
+                        Toggle::make('is_featured')
+                            ->label('Feature this Product')
+                            ->onIcon('heroicon-m-bolt')
+                            ->offIcon('heroicon-m-x-mark')
+                            ->default(false),
+
                         Forms\Components\Select::make('shopkeeper_id')
                             ->relationship('shopkeeper', 'shop_name')
                             ->label('Shop Owner')
-                            // Auto-fill with the logged-in user's shop ID
                             ->default(fn () => auth()->user()->shopkeeper?->id)
-                            // Only Admins can change the shop owner
                             ->disabled(fn () => auth()->user()->role !== 'admin')
-                            ->dehydrated() // Ensures the ID is sent even if disabled
+                            ->dehydrated()
                             ->required()
                             ->searchable()
                             ->preload(),
@@ -74,7 +73,7 @@ class ProductResource extends Resource
                         Forms\Components\FileUpload::make('image')
                             ->image()
                             ->directory('products')
-                            ->default('default.jpg'),
+                            ->visibility('public'),
                     ])->columns(2),
             ]);
     }
@@ -90,7 +89,12 @@ class ProductResource extends Resource
                     ->searchable()
                     ->sortable(),
 
-                // Displaying Shop Name + Telegram Username
+                // --- FEATURED STATUS VISIBLE IN TABLE ---
+                IconColumn::make('is_featured')
+                    ->label('Featured')
+                    ->boolean()
+                    ->sortable(),
+
                 Tables\Columns\TextColumn::make('shopkeeper.shop_name')
                     ->label('Shop')
                     ->sortable()
@@ -105,35 +109,16 @@ class ProductResource extends Resource
                 Tables\Columns\TextColumn::make('price')
                     ->money('USD')
                     ->sortable(),
-
-                Tables\Columns\TextColumn::make('created_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-            ])
-            // Grouping products by Shop for better Admin view
-            ->groups([
-                Tables\Grouping\Group::make('shopkeeper.shop_name')
-                    ->label('Shop Name')
-                    ->collapsible(),
             ])
             ->filters([
+                Tables\Filters\TernaryFilter::make('is_featured')
+                    ->label('Featured Only'),
                 Tables\Filters\SelectFilter::make('category')
                     ->relationship('category', 'name'),
-                
-                Tables\Filters\SelectFilter::make('shopkeeper')
-                    ->relationship('shopkeeper', 'shop_name')
-                    ->visible(fn () => auth()->user()->role === 'admin'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
-            ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make()
-                        ->visible(fn () => auth()->user()->role === 'admin'),
-                ]),
             ]);
     }
 

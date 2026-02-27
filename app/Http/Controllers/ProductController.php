@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\Category;
 use App\Services\FCMService;
 use Illuminate\Support\Facades\Storage;
+use App\Models\Feedback;
 
 class ProductController extends Controller
 {
@@ -51,25 +52,22 @@ class ProductController extends Controller
     }
 
     public function index()
-    {
+{
+    // Get all categories with their products and shopkeeper info
+    $categories = Category::with(['products.shopkeeper'])->get();
 
-        // 🟢 Loads Categories -> Products -> Shopkeeper nested data
-        $categories = Category::with(['products.shopkeeper'])->get();
+    // Get ONLY products where is_featured is 1 (True)
+    $featuredProducts = Product::where('is_featured', true)
+        ->with('shopkeeper')
+        ->latest()
+        ->get();
 
-        // 🟢 Loads Featured Products and their Shopkeeper
-        $featuredProducts = Product::where('is_featured', 1)
-            ->with('shopkeeper')
-            ->latest()
-            ->get();
-
-        return response()->json([
-            'success' => true,
-            'categories' => $categories,
-            'featuredProducts' => $featuredProducts
-        ], 200);
-
-
-    }
+    return response()->json([
+        'success' => true,
+        'categories' => $categories,
+        'featuredProducts' => $featuredProducts
+    ], 200);
+}
 
     public function getProductByCate($cateId)
     {
@@ -83,33 +81,54 @@ class ProductController extends Controller
     }
 
     public function search(Request $request)
-    {
-        // 1. FIXED: Made 'name' nullable so users can search ONLY by price
-        $request->validate([
-            'name' => 'nullable|string|max:255',
-            'min_price' => 'nullable|numeric',
-            'max_price' => 'nullable|numeric',
-        ]);
+{
+    // 1. Validation
+    $request->validate([
+        'name' => 'nullable|string|max:255',
+        'search' => 'nullable|string|max:255', // Added to accept 'search' key
+        'min_price' => 'nullable|numeric',
+        'max_price' => 'nullable|numeric',
+    ]);
 
-        $query = Product::query();
+    // 2. Load shopkeeper and ensure products belong to a shop
+    $query = Product::with('shopkeeper')->whereNotNull('shopkeeper_id');
 
-        // Apply name filter only if a name was typed
-        if ($request->filled('name')) {
-            $query->where('name', 'like', '%' . $request->name . '%');
-        }
+    // 3. Catch search term from either 'name' or 'search' parameter
+    $searchTerm = $request->input('name') ?? $request->input('search');
 
-        // Apply min_price filter only if a minimum price was entered
-        if ($request->filled('min_price')) {
-            $query->where('price', '>=', $request->min_price);
-        }
-
-        // Apply max_price filter only if a maximum price was entered
-        if ($request->filled('max_price')) {
-            $query->where('price', '<=', $request->max_price);
-        }
-
-        $products = $query->get();
-
-        return response()->json($products);
+    if (!empty($searchTerm)) {
+        $query->where('name', 'like', '%' . $searchTerm . '%');
     }
+
+    // Apply min_price filter
+    if ($request->filled('min_price')) {
+        $query->where('price', '>=', $request->min_price);
+    }
+
+    // Apply max_price filter
+    if ($request->filled('max_price')) {
+        $query->where('price', '<=', $request->max_price);
+    }
+
+    $products = $query->get();
+
+    // Standardized response
+    return response()->json([
+        'success' => true,
+        'data' => $products
+    ], 200);
+}
+
+public function getUserFeedback(Request $request) {
+    // This fetches feedback for the logged-in user and includes product info
+    $data = Feedback::where('user_id', $request->user()->id)
+                    ->with('product') 
+                    ->latest()
+                    ->get();
+                    
+    return response()->json([
+        'success' => true,
+        'data' => $data
+    ]);
+}
 }
