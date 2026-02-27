@@ -20,7 +20,28 @@ class AddressResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
     protected static ?int $navigationSort = 5;
 
+    //hide
+public static function shouldRegisterNavigation(): bool
+{
+    $user = auth()->user();
 
+    // Admin never sees these
+    if ($user->role === 'admin') return false;
+
+    // 🟢 DYNAMIC CHECK: Check if the Admin enabled this feature for the Shopkeeper
+    if ($user->role === 'shopkeeper') {
+        return match (static::class) {
+            ProductResource::class => (bool) $user->can_manage_products,
+            OrderResource::class => (bool) $user->can_manage_orders,
+            CategoryResource::class => (bool) $user->can_manage_categories,
+            AddressResource::class => (bool) $user->can_manage_address,
+            default => true,
+        };
+    }
+
+    return false;
+}
+    //
     public static function form(Form $form): Form
     {
         return $form

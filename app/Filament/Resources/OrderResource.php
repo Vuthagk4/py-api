@@ -32,6 +32,29 @@ class OrderResource extends Resource
         return auth()->user()->role === 'admin';
     }
 
+    //hide
+public static function shouldRegisterNavigation(): bool
+{
+    $user = auth()->user();
+
+    // Admin never sees these
+    if ($user->role === 'admin') return false;
+
+    // 🟢 DYNAMIC CHECK: Check if the Admin enabled this feature for the Shopkeeper
+    if ($user->role === 'shopkeeper') {
+        return match (static::class) {
+            ProductResource::class => (bool) $user->can_manage_products,
+            OrderResource::class => (bool) $user->can_manage_orders,
+            CategoryResource::class => (bool) $user->can_manage_categories,
+            AddressResource::class => (bool) $user->can_manage_address,
+            default => true,
+        };
+    }
+
+    return false;
+}
+    //
+
     /**
      * SECURITY: Shopkeepers only see orders linked to their store.
      */
@@ -96,10 +119,10 @@ class OrderResource extends Resource
                                     ->prefix('$')
                                     ->label('Unit Price')
                                     ->disabled(),
-                                    
+
                                 Forms\Components\Placeholder::make('subtotal')
                                     ->label('Subtotal')
-                                    ->content(fn ($get) => '$' . (number_format(($get('quantity') ?? 0) * ($get('price') ?? 0), 2))),
+                                    ->content(fn($get) => '$' . (number_format(($get('quantity') ?? 0) * ($get('price') ?? 0), 2))),
                             ])
                             ->columns(5)
                             ->addable(false)

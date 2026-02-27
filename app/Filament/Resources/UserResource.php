@@ -29,6 +29,8 @@ class UserResource extends Resource
     {
         return auth()->check() && auth()->user()->role === 'admin';
     }
+
+    // app/Filament/Resources/UserResource.php
     /**
      * SECURITY: Filter the list so Shopkeepers only see 'user' role accounts 
      * who have purchased from their specific shop.
@@ -68,36 +70,46 @@ class UserResource extends Resource
         return auth()->user()->role === 'admin';
     }
 
-    public static function form(Form $form): Form
-    {
-        return $form
-            ->schema([
-                Forms\Components\TextInput::make('name')
-                    ->required(),
+    // app/Filament/Resources/UserResource.php
 
-                Forms\Components\TextInput::make('email')
-                    ->email()
-                    ->required(),
+public static function form(Form $form): Form
+{
+    return $form
+        ->schema([
+            // SECTION 1: Account Basics
+            Forms\Components\Section::make('User Account')
+                ->schema([
+                    Forms\Components\TextInput::make('name')->required(),
+                    Forms\Components\TextInput::make('email')->email()->required(),
+                    Forms\Components\Select::make('role')
+                        ->options([
+                            'admin' => 'Admin',
+                            'shopkeeper' => 'Shopkeeper',
+                            'user' => 'User',
+                        ])
+                        ->required()
+                        ->live(), // 🟢 This allows the UI to update as you change the role
+                ]),
 
-                Forms\Components\TextInput::make('password')
-                    ->password()
-                    ->required(fn(string $operation): bool => $operation === 'create') // ✅ Required only on create
-                    ->minLength(8)
-                    ->dehydrateStateUsing(fn($state) => !empty($state) ? bcrypt($state) : null) // ✅ Auto hash
-                    ->dehydrated(fn($state) => filled($state)) // ✅ Skip if empty on edit
-                    ->label('Password'),
-
-                Forms\Components\Select::make('role')
-                    ->options([
-                        'user' => 'User',
-                        'shopkeeper' => 'Shopkeeper',
-                        'admin' => 'Admin',
-                    ])
-                    ->required()
-                    ->visible(fn() => auth()->user()->role === 'admin'),
-            ]);
-    }
-
+            // SECTION 2: Permission Control (The "Menu" you are looking for)
+            Forms\Components\Section::make('Permission Control')
+                ->description('Enable or disable shop menus for this Shopkeeper.')
+                ->visible(fn ($get) => $get('role') === 'shopkeeper') // 🟢 Only shows for shopkeepers
+                ->schema([
+                    Forms\Components\Toggle::make('can_manage_products')
+                        ->label('Product Menu')
+                        ->helperText('Allow access to Cloth Inventory'),
+                    
+                    Forms\Components\Toggle::make('can_manage_categories')
+                        ->label('Category Menu')
+                        ->helperText('Allow access to Cloth Categories'),
+                    
+                    Forms\Components\Toggle::make('can_manage_orders')
+                        ->label('Order Menu')
+                        ->helperText('Allow access to Sales and Orders'),
+                ])->columns(3),
+        ]);
+}
     // public static function table(Table $table): Table
     // {
     //     return $table
@@ -119,16 +131,16 @@ class UserResource extends Resource
             ->paginated(false) // ✅ No pagination bar
             ->actions([]);
     }
-    
+
 
     // ✅ Register the 2 widgets here
-public static function getWidgets(): array
-{
-    return [
-        NormalUsersTable::class,
-        AdminUsersTable::class,
-    ];
-}
+    public static function getWidgets(): array
+    {
+        return [
+            NormalUsersTable::class,
+            AdminUsersTable::class,
+        ];
+    }
 
     public static function getPages(): array
     {

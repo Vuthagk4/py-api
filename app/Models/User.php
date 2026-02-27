@@ -17,13 +17,17 @@ class User extends Authenticatable implements FilamentUser
     // Use standard traits for API and authentication
     use HasApiTokens, HasFactory, Notifiable;
 
+   
     protected $fillable = [
-        'name',
-        'email',
-        'password',
-        'avatar',
-        'role', // Required for role-based access
-    ];
+    'name',
+    'email',
+    'password',
+    'role',
+    'can_manage_products',
+    'can_manage_categories',
+    'can_manage_orders',
+    'can_manage_address', // 🟢 Add this here
+];
 
     protected $hidden = [
         'password',

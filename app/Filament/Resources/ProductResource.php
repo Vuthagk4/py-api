@@ -28,6 +28,32 @@ class ProductResource extends Resource
         return parent::getEloquentQuery()->where('shopkeeper_id', $user->shopkeeper?->id);
     }
 
+    //hide
+ public static function shouldRegisterNavigation(): bool
+{
+    $user = auth()->user();
+
+    // Admin never sees these
+    if ($user->role === 'admin') return false;
+
+    // 🟢 DYNAMIC CHECK: Check if the Admin enabled this feature for the Shopkeeper
+    if ($user->role === 'shopkeeper') {
+        return match (static::class) {
+            ProductResource::class => (bool) $user->can_manage_products,
+            OrderResource::class => (bool) $user->can_manage_orders,
+            CategoryResource::class => (bool) $user->can_manage_categories,
+            AddressResource::class => (bool) $user->can_manage_address,
+            default => true,
+        };
+    }
+
+    return false;
+}
+
+
+
+
+
     public static function form(Form $form): Form
     {
         return $form
@@ -59,8 +85,8 @@ class ProductResource extends Resource
                         Forms\Components\Select::make('shopkeeper_id')
                             ->relationship('shopkeeper', 'shop_name')
                             ->label('Shop Owner')
-                            ->default(fn () => auth()->user()->shopkeeper?->id)
-                            ->disabled(fn () => auth()->user()->role !== 'admin')
+                            ->default(fn() => auth()->user()->shopkeeper?->id)
+                            ->disabled(fn() => auth()->user()->role !== 'admin')
                             ->dehydrated()
                             ->required()
                             ->searchable()
@@ -98,7 +124,8 @@ class ProductResource extends Resource
                 Tables\Columns\TextColumn::make('shopkeeper.shop_name')
                     ->label('Shop')
                     ->sortable()
-                    ->description(fn (Product $record): string => 
+                    ->description(
+                        fn(Product $record): string =>
                         $record->shopkeeper?->telegram_username ? "@{$record->shopkeeper->telegram_username}" : 'No Telegram'
                     ),
 

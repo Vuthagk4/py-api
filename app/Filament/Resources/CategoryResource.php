@@ -36,6 +36,29 @@ class CategoryResource extends Resource
         return parent::getEloquentQuery()->where('shopkeeper_id', $user->shopkeeper?->id);
     }
 
+
+    //hide
+public static function shouldRegisterNavigation(): bool
+{
+    $user = auth()->user();
+
+    // Admin never sees these
+    if ($user->role === 'admin') return false;
+
+    // 🟢 DYNAMIC CHECK: Check if the Admin enabled this feature for the Shopkeeper
+    if ($user->role === 'shopkeeper') {
+        return match (static::class) {
+            ProductResource::class => (bool) $user->can_manage_products,
+            OrderResource::class => (bool) $user->can_manage_orders,
+            CategoryResource::class => (bool) $user->can_manage_categories,
+            AddressResource::class => (bool) $user->can_manage_address,
+            default => true,
+        };
+    }
+
+    return false;
+}
+    //
     public static function form(Form $form): Form
     {
         return $form
@@ -45,16 +68,16 @@ class CategoryResource extends Resource
                         Forms\Components\TextInput::make('name')
                             ->required()
                             ->maxLength(255)
-                            ->live(onBlur: true) 
+                            ->live(onBlur: true)
                             ->afterStateUpdated(function (Forms\Set $set, ?string $state) {
                                 $set('slug', Str::slug($state));
                             }),
 
                         // 🟢 Automatically link to the current Shopkeeper
                         Forms\Components\Hidden::make('shopkeeper_id')
-                            ->default(fn () => auth()->user()->shopkeeper?->id),
+                            ->default(fn() => auth()->user()->shopkeeper?->id),
 
-                        
+
 
                         Forms\Components\Textarea::make('description')
                             ->required()
@@ -75,12 +98,12 @@ class CategoryResource extends Resource
                 // 🟢 Show which Shop owns this category (Visible to Admin)
                 Tables\Columns\TextColumn::make('shopkeeper.shop_name')
                     ->label('Owner Shop')
-                    ->visible(fn () => auth()->user()->role === 'admin')
+                    ->visible(fn() => auth()->user()->role === 'admin')
                     ->badge(),
 
                 Tables\Columns\TextColumn::make('description')
                     ->searchable()
-                    ->limit(50), 
+                    ->limit(50),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
@@ -91,7 +114,7 @@ class CategoryResource extends Resource
                 // Allow Admin to filter categories by shop
                 Tables\Filters\SelectFilter::make('shopkeeper')
                     ->relationship('shopkeeper', 'shop_name')
-                    ->visible(fn () => auth()->user()->role === 'admin'),
+                    ->visible(fn() => auth()->user()->role === 'admin'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
