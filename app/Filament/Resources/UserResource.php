@@ -9,17 +9,26 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Filament\View\LegacyComponents\Widget;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use App\Filament\Resources\UserResource\Widgets\NormalUsersTable;
+use App\Filament\Resources\UserResource\Widgets\AdminUsersTable;
 
 class UserResource extends Resource
 {
     protected static ?string $model = User::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-users';
-    protected static ?string $navigationLabel = 'Customers';
-    protected static ?string $modelLabel = 'Customer';
+    protected static ?string $navigationLabel = 'User Management';
+    protected static ?string $navigationGroup = 'User Management';
 
+
+    // Protect if not admin not show user management 
+    public static function shouldRegisterNavigation(): bool
+    {
+        return auth()->check() && auth()->user()->role === 'admin';
+    }
     /**
      * SECURITY: Filter the list so Shopkeepers only see 'user' role accounts 
      * who have purchased from their specific shop.
@@ -35,7 +44,7 @@ class UserResource extends Resource
 
         // Shopkeepers ONLY see 'user' role accounts linked via orders
         return parent::getEloquentQuery()
-            ->where('role', 'user') 
+            ->where('role', 'user')
             ->whereHas('orders', function ($query) use ($user) {
                 $query->where('shopkeeper_id', $user->shopkeeper?->id);
             });
@@ -63,33 +72,63 @@ class UserResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\TextInput::make('name')->required(),
-                Forms\Components\TextInput::make('email')->email()->required(),
+                Forms\Components\TextInput::make('name')
+                    ->required(),
+
+                Forms\Components\TextInput::make('email')
+                    ->email()
+                    ->required(),
+
+                Forms\Components\TextInput::make('password')
+                    ->password()
+                    ->required(fn(string $operation): bool => $operation === 'create') // ✅ Required only on create
+                    ->minLength(8)
+                    ->dehydrateStateUsing(fn($state) => !empty($state) ? bcrypt($state) : null) // ✅ Auto hash
+                    ->dehydrated(fn($state) => filled($state)) // ✅ Skip if empty on edit
+                    ->label('Password'),
+
                 Forms\Components\Select::make('role')
                     ->options([
                         'user' => 'User',
                         'shopkeeper' => 'Shopkeeper',
                         'admin' => 'Admin',
                     ])
-                    ->visible(fn () => auth()->user()->role === 'admin'),
+                    ->required()
+                    ->visible(fn() => auth()->user()->role === 'admin'),
             ]);
     }
 
+    // public static function table(Table $table): Table
+    // {
+    //     return $table
+    //         ->columns([
+    //             Tables\Columns\TextColumn::make('name')->searchable(),
+    //             Tables\Columns\TextColumn::make('email')->searchable(),
+    //             Tables\Columns\TextColumn::make('role')->badge(),
+    //         ])
+    //         ->actions([
+    //             Tables\Actions\ViewAction::make(),
+    //             Tables\Actions\EditAction::make(),
+    //             Tables\Actions\DeleteAction::make(),
+    //         ]);
+    // }
     public static function table(Table $table): Table
     {
         return $table
-            ->columns([
-                Tables\Columns\TextColumn::make('name')->searchable(),
-                Tables\Columns\TextColumn::make('email')->searchable(),
-                Tables\Columns\TextColumn::make('role')->badge(),
-            ])
-            ->actions([
-                // Added ViewAction so Shopkeepers can still see details in read-only mode
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
-            ]);
+            ->columns([]) // ✅ No columns = invisible table
+            ->paginated(false) // ✅ No pagination bar
+            ->actions([]);
     }
+    
+
+    // ✅ Register the 2 widgets here
+public static function getWidgets(): array
+{
+    return [
+        NormalUsersTable::class,
+        AdminUsersTable::class,
+    ];
+}
 
     public static function getPages(): array
     {

@@ -16,4 +16,13 @@ class ListUsers extends ListRecords
             Actions\CreateAction::make(),
         ];
     }
+
+    // ✅ Put widgets in header ABOVE everything
+    protected function getHeaderWidgets(): array
+    {
+        return [
+            UserResource\Widgets\NormalUsersTable::class,
+            UserResource\Widgets\AdminUsersTable::class,
+        ];
+    }
 }

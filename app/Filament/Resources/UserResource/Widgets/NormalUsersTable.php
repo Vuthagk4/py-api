@@ -1,0 +1,34 @@
+<?php
+
+
+namespace App\Filament\Resources\UserResource\Widgets;
+
+use App\Models\User;
+use Filament\Tables;
+use Filament\Tables\Table;
+use App\Filament\Resources\UserResource;
+
+
+use Filament\Widgets\TableWidget as BaseWidget;
+
+class NormalUsersTable extends BaseWidget
+{
+    protected static ?string $heading = 'Normal Users';
+    protected int | string | array $columnSpan = 'full';
+    public function table(Table $table): Table
+    {
+        return $table
+            ->query(User::where('role', 'user'))
+            ->columns([
+                Tables\Columns\TextColumn::make('name')->searchable(),
+                Tables\Columns\TextColumn::make('email')->searchable(),
+                Tables\Columns\TextColumn::make('role')->badge(),
+            ])
+            ->actions([
+                // Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->url(fn(User $record) => UserResource::getUrl('edit', ['record' => $record])),
+                Tables\Actions\DeleteAction::make(),
+            ]);
+    }
+}
