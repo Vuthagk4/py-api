@@ -13,11 +13,15 @@ class ProductController extends Controller
 {
     protected $fcmService;
 
+    // 🟢 Injecting FCMService to handle notifications
     public function __construct(FCMService $fcmService)
     {
         $this->fcmService = $fcmService;
     }
 
+    /**
+     * Store a newly created product and notify users.
+     */
     public function store(Request $request)
     {
         $request->validate([
@@ -32,10 +36,11 @@ class ProductController extends Controller
         $imagePath = null;
 
         if ($request->hasFile('image')) {
-            // 🔥 CRITICAL: Explicitly use the 'public' disk
+            // 🔥 Explicitly use the 'public' disk for CentOS storage visibility
             $imagePath = $request->file('image')->store('products', 'public');
         }
 
+        // Create the product in MySQL
         $product = Product::create([
             'name' => $request->name,
             'description' => $request->description,
@@ -43,32 +48,53 @@ class ProductController extends Controller
             'image' => $imagePath,
             'is_featured' => $request->is_featured ?? 0,
             'category_id' => $request->category_id,
+            // Ensure shopkeeper_id is set if your model requires it
+            'shopkeeper_id' => $request->user()->id, 
         ]);
 
+        // 🟢 TRIGGER NOTIFICATION: Notify all users subscribed to 'all_users' topic
+        try {
+            $this->fcmService->sendToTopic(
+                'all_users', 
+                'New Product in Shop! 👕', 
+                "Check out the new '{$product->name}' just added to our collection."
+            );
+        } catch (\Exception $e) {
+            // Log error but don't stop the product creation
+            \Log::error("FCM Notification failed: " . $e->getMessage());
+        }
+
         return response()->json([
-            'message' => 'Product created successfully',
+            'success' => true,
+            'message' => 'Product created and notification sent',
             'product' => $product
         ], 201);
     }
 
+    /**
+     * Display a listing of categories and featured products.
+     */
     public function index()
-{
-    // Get all categories with their products and shopkeeper info
-    $categories = Category::with(['products.shopkeeper'])->get();
+    {
+        // Get all categories with their products and shopkeeper info
+        $categories = Category::with(['products.shopkeeper'])->get();
 
-    // Get ONLY products where is_featured is 1 (True)
-    $featuredProducts = Product::where('is_featured', true)
-        ->with('shopkeeper')
-        ->latest()
-        ->get();
+        // Get ONLY products where is_featured is 1 (True)
+        $featuredProducts = Product::where('is_featured', true)
+            ->with('shopkeeper')
+            ->latest()
+            ->get();
 
-    return response()->json([
-        'success' => true,
-        'categories' => $categories,
-        'featuredProducts' => $featuredProducts
-    ], 200);
-}
+        return response()->json([
+            'success' => true,
+            'categories' => $categories,
+            'featuredProducts' => $featuredProducts
+        ], 200);
+    }
 
+    /**
+     * Get products by a specific Category ID.
+     */
     public function getProductByCate($cateId)
     {
         $category = Category::find($cateId);
@@ -76,59 +102,58 @@ class ProductController extends Controller
             return response()->json(['success' => false, 'message' => 'Category not found'], 404);
         }
         
-        $products = $category->products()->paginate(10);
+        $products = $category->products()->with('shopkeeper')->paginate(10);
         return response()->json($products);
     }
 
+    /**
+     * Search products by name or price range.
+     */
     public function search(Request $request)
-{
-    // 1. Validation
-    $request->validate([
-        'name' => 'nullable|string|max:255',
-        'search' => 'nullable|string|max:255', // Added to accept 'search' key
-        'min_price' => 'nullable|numeric',
-        'max_price' => 'nullable|numeric',
-    ]);
+    {
+        $request->validate([
+            'name' => 'nullable|string|max:255',
+            'search' => 'nullable|string|max:255',
+            'min_price' => 'nullable|numeric',
+            'max_price' => 'nullable|numeric',
+        ]);
 
-    // 2. Load shopkeeper and ensure products belong to a shop
-    $query = Product::with('shopkeeper')->whereNotNull('shopkeeper_id');
+        $query = Product::with('shopkeeper')->whereNotNull('shopkeeper_id');
 
-    // 3. Catch search term from either 'name' or 'search' parameter
-    $searchTerm = $request->input('name') ?? $request->input('search');
+        $searchTerm = $request->input('name') ?? $request->input('search');
 
-    if (!empty($searchTerm)) {
-        $query->where('name', 'like', '%' . $searchTerm . '%');
+        if (!empty($searchTerm)) {
+            $query->where('name', 'like', '%' . $searchTerm . '%');
+        }
+
+        if ($request->filled('min_price')) {
+            $query->where('price', '>=', $request->min_price);
+        }
+
+        if ($request->filled('max_price')) {
+            $query->where('price', '<=', $request->max_price);
+        }
+
+        $products = $query->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $products
+        ], 200);
     }
 
-    // Apply min_price filter
-    if ($request->filled('min_price')) {
-        $query->where('price', '>=', $request->min_price);
+    /**
+     * Get feedback history for the authenticated user.
+     */
+    public function getUserFeedback(Request $request) {
+        $data = Feedback::where('user_id', $request->user()->id)
+                        ->with('product') 
+                        ->latest()
+                        ->get();
+                        
+        return response()->json([
+            'success' => true,
+            'data' => $data
+        ]);
     }
-
-    // Apply max_price filter
-    if ($request->filled('max_price')) {
-        $query->where('price', '<=', $request->max_price);
-    }
-
-    $products = $query->get();
-
-    // Standardized response
-    return response()->json([
-        'success' => true,
-        'data' => $products
-    ], 200);
-}
-
-public function getUserFeedback(Request $request) {
-    // This fetches feedback for the logged-in user and includes product info
-    $data = Feedback::where('user_id', $request->user()->id)
-                    ->with('product') 
-                    ->latest()
-                    ->get();
-                    
-    return response()->json([
-        'success' => true,
-        'data' => $data
-    ]);
-}
 }
