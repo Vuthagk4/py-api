@@ -55,6 +55,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('orders/{id}/pay', [OrderController::class, 'markAsPaid']); // Added for Bakong payment success
 
     // Notifications
+    Route::post('update-fcm-token', [NotificationController::class, 'updateFcmToken']);
     Route::post('/send-notification', [NotificationController::class, 'sendNotification']);
     Route::post('/send-notification-topic', [NotificationController::class, 'sendToTopic']);
 

@@ -57,4 +57,23 @@ class NotificationController extends Controller
         
         return response()->json(['success' => true, 'response' => $response]);
     }
+    // ... existing code ...
+
+public function updateFcmToken(Request $request)
+{
+    $request->validate([
+        'fcm_token' => 'required|string',
+    ]);
+
+    // 🟢 This saves the token to the logged-in user
+    $request->user()->update([
+        'fcm_token' => $request->fcm_token,
+    ]);
+
+    return response()->json([
+        'success' => true, 
+        'message' => 'Token updated successfully'
+    ]);
+}
+    
 }
