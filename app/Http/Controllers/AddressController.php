@@ -9,25 +9,28 @@ use Illuminate\Support\Facades\Validator;
 class AddressController extends Controller
 {
     
-    public function store(Request $request)
-    {
-        $request->validate([
-            'line1' => 'required|string|max:255',
-            'line2' => 'nullable|string|max:255',
-            'city' => 'required|string|max:255',
-            'country' => 'required|string|max:255',
-            'postal_code' => 'required|string|max:20',
-            'longitude' => 'nullable|numeric',
-            'latitude' => 'nullable|numeric'
-        ]);
+   public function store(Request $request)
+{
+    $request->validate([
+        'full_name' => 'required|string',
+        'phone'     => 'required|string',
+        'street'    => 'required|string',
+        'latitude'  => 'required|numeric',
+        'longitude' => 'required|numeric',
+    ]);
 
-        $address = Address::create($request->all());
+    $address = Address::create([
+        'user_id'   => auth()->id(),
+        'full_name' => $request->full_name,
+        'phone'     => $request->phone,
+        'street'    => $request->street,
+        'latitude'  => $request->latitude,
+        'longitude' => $request->longitude,
+        'country'   => 'Cambodia',
+    ]);
 
-        return response()->json([
-            'message' => "Address created successfully",
-            'address' => $address
-        ], 200);
-    }
+    return response()->json(['message' => 'Success', 'address' => $address], 201);
+}
     public function update(Request $request, $id)
     {
         $address = Address::find($id); // Find the address by ID if it exists

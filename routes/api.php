@@ -13,12 +13,9 @@ use App\Http\Controllers\NotificationController;
 // ==========================================
 // 🟢 PUBLIC ROUTES (No login required)
 // ==========================================
-
-// Authentication
 Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
 
-// Catalog (Browsing the store)
 Route::get('categories', [CategoryController::class, 'index']);
 Route::get('products', [ProductController::class, 'index']);
 Route::get('product-cate/{id}', [ProductController::class, 'getProductByCate']);
@@ -37,7 +34,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('logout', [AuthController::class, 'logout']);
     Route::post('user/update', [AuthController::class, 'update']);
 
-    // Carts (Using DELETE for removals is better REST practice)
+    // Carts
     Route::post('cart', [CartController::class, 'addToCart']);
     Route::get('viewCart', [CartController::class, 'viewCart']);
     Route::delete('remove-cart-item/{proId}', [CartController::class, 'removeFromCart']);
@@ -49,21 +46,21 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('address/{id}', [AddressController::class, 'update']);
     Route::delete('address/{id}', [AddressController::class, 'destroy']);
 
-    // Orders
+    // 🟢 Orders & KHQR Slip Upload
     Route::get('orders', [OrderController::class, 'index']);
     Route::post('order/checkout', [OrderController::class, 'checkout']);
-    Route::post('orders/{id}/pay', [OrderController::class, 'markAsPaid']); // Added for Bakong payment success
+    
+    // This matches the endpoint called by your Flutter APIProvider
+    Route::post('orders/checkout-with-slip', [OrderController::class, 'checkout']);
+    
+    Route::post('orders/{id}/pay', [OrderController::class, 'markAsPaid']);
 
     // Notifications
     Route::post('update-fcm-token', [NotificationController::class, 'updateFcmToken']);
     Route::post('/send-notification', [NotificationController::class, 'sendNotification']);
     Route::post('/send-notification-topic', [NotificationController::class, 'sendToTopic']);
 
-    // ==========================================
-    // ⚠️ ADMIN DATA MANAGEMENT ⚠️
-    // Since you use Filament, you actually don't need these routes for the mobile app!
-    // But if you keep them, they MUST be inside this secure group.
-    // ==========================================
+    // Admin Data Management (Filament fallback)
     Route::post('category', [CategoryController::class, 'store']);
     Route::put('category/{id}', [CategoryController::class, 'update']);
     Route::delete('category/{id}', [CategoryController::class, 'destroy']);

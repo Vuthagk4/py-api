@@ -12,17 +12,15 @@ return new class extends Migration
     public function up(): void
 {
     Schema::table('orders', function (Blueprint $table) {
-        $table->foreignId('product_id')
-              ->nullable() 
-              ->constrained()
-              ->onDelete('cascade');
+        // 🟢 Adds the column after the status column
+        $table->string('image_qrcode')->nullable()->after('status'); 
     });
 }
 
-    public function down(): void
-    {
-        Schema::table('orders', function (Blueprint $table) {
-            $table->dropColumn('product_id');
-        });
-    }
+public function down(): void
+{
+    Schema::table('orders', function (Blueprint $table) {
+        $table->dropColumn('image_qrcode');
+    });
+}
 };
