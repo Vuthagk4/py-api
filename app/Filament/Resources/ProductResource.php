@@ -80,6 +80,13 @@ class ProductResource extends Resource
                             ->prefix('$')
                             ->required(),
 
+                        Forms\Components\TextInput::make('stock')
+                            ->label('Stock Quantity')
+                            ->numeric()
+                            ->default(0)
+                            ->required()
+                            ->dehydrated(), // 👈 Add this to force it to save to the DB
+
                         // --- FEATURED TOGGLE ADDED HERE ---
                         Toggle::make('is_featured')
                             ->label('Feature this Product')
@@ -140,6 +147,10 @@ class ProductResource extends Resource
 
                 Tables\Columns\TextColumn::make('price')
                     ->money('USD')
+                    ->sortable(),
+
+                Tables\Columns\TextColumn::make('stock')
+                    ->label('In Stock')
                     ->sortable(),
             ])
             ->filters([

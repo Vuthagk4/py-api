@@ -13,18 +13,17 @@ class StatsOverview extends BaseWidget
 {
     public static function canView(): bool
     {
-        // Logic: Who is allowed to see this specific file?
         return in_array(auth()->user()->role, ['admin', 'shopkeeper']);
     }
+
     protected function getStats(): array
     {
         $user = auth()->user();
+        // Consistently check for 'admin' role or specific email
         $isAdmin = $user->role === 'admin' || $user->email === 'admin@me.com';
-        $shopId = $user->shopkeeper?->id; // Get the ID if the user is a shopkeeper
+        $shopId = $user->shopkeeper?->id; 
 
         // 🟢 Query Scoping Logic
-        // For Admin, we count everything. For Shopkeeper, we filter by shopkeeper_id.
-        
         $revenueQuery = Cart::where('status', 'completed');
         $pendingQuery = Cart::where('status', 'pending');
         $completedQuery = Cart::where('status', 'completed');
@@ -32,7 +31,6 @@ class StatsOverview extends BaseWidget
         $categoryQuery = Category::query();
 
         if (!$isAdmin) {
-            // Filter queries to only show data for this specific shopkeeper
             $revenueQuery->where('shopkeeper_id', $shopId);
             $pendingQuery->where('shopkeeper_id', $shopId);
             $completedQuery->where('shopkeeper_id', $shopId);
@@ -66,7 +64,7 @@ class StatsOverview extends BaseWidget
                 ->descriptionIcon('heroicon-m-check-circle')
                 ->color('success'),
 
-            Stat::make('Total Customers', $isAdmin ? User::count() : $user->customers()->count())
+            Stat::make('Total Customers', $isAdmin ? User::count() : ($user->customers() ? $user->customers()->count() : 0))
                 ->description($isAdmin ? 'Total platform users' : 'Users who bought from you')
                 ->descriptionIcon('heroicon-m-users')
                 ->color('info'),
