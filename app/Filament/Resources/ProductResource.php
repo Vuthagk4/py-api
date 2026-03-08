@@ -86,7 +86,19 @@ class ProductResource extends Resource
                             ->default(0)
                             ->required()
                             ->dehydrated(), // 👈 Add this to force it to save to the DB
-
+                        Forms\Components\CheckboxList::make('sizes')
+                            ->label('Available Sizes')
+                            ->options([
+                                'XS'  => 'XS',
+                                'S'   => 'S',
+                                'M'   => 'M',
+                                'L'   => 'L',
+                                'XL'  => 'XL',
+                                'XXL' => 'XXL',
+                            ])
+                            ->default(['S', 'M', 'L', 'XL'])
+                            ->columns(3)
+                            ->columnSpanFull(),
                         // --- FEATURED TOGGLE ADDED HERE ---
                         Toggle::make('is_featured')
                             ->label('Feature this Product')
@@ -126,6 +138,10 @@ class ProductResource extends Resource
                 Tables\Columns\TextColumn::make('name')
                     ->searchable()
                     ->sortable(),
+                Tables\Columns\TextColumn::make('sizes')
+                    ->label('Sizes')
+                    ->formatStateUsing(fn ($state) => is_array($state) ? implode(', ', $state) : $state)
+                    ->badge(),
 
                 // --- FEATURED STATUS VISIBLE IN TABLE ---
                 IconColumn::make('is_featured')

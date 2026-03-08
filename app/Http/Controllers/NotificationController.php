@@ -75,5 +75,27 @@ public function updateFcmToken(Request $request)
         'message' => 'Token updated successfully'
     ]);
 }
+public function index(Request $request)
+{
+    return $request->user()->notifications;
+}
+// Mark a single notification as read
+public function markAsRead(Request $request, $id) {
+    $notification = $request->user()->notifications()->findOrFail($id);
+    $notification->markAsRead();
+    return response()->json(['success' => true]);
+}
+
+// Mark everything as read
+public function markAllAsRead(Request $request) {
+    $request->user()->unreadNotifications->markAsRead();
+    return response()->json(['success' => true]);
+}
+
+// Delete a notification
+public function destroy(Request $request, $id) {
+    $request->user()->notifications()->findOrFail($id)->delete();
+    return response()->json(['success' => true]);
+}
     
 }

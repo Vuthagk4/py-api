@@ -14,24 +14,26 @@ use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable implements FilamentUser
 {
-    // Use standard traits for API and authentication
     use HasApiTokens, HasFactory, Notifiable;
 
-   
     protected $fillable = [
-    'name',
-    'email',
-    'password',
-    'role',
-    'can_manage_products',
-    'can_manage_categories',
-    'can_manage_orders',
-    'can_manage_address', // 🟢 Add this here
-];
+        'name',
+        'email',
+        'password',
+        'role',
+        'fcm_token',             // 🟢 ADDED: Essential for Real-time Chat
+        'shop_name',             // 🟢 ADDED: For Shopkeeper identity
+        'telegram_username',     // 🟢 ADDED: For Telegram fallback
+        'can_manage_products',
+        'can_manage_categories',
+        'can_manage_orders',
+        'can_manage_address',
+    ];
 
     protected $hidden = [
         'password',
         'remember_token',
+        // 'fcm_token',          // 🟢 REMOVED from hidden: Flutter needs this
     ];
 
     /**
@@ -47,12 +49,11 @@ class User extends Authenticatable implements FilamentUser
      */
     public function orders(): HasMany
     {
-        return $this->hasMany(Order::class);
+        return $this->hasMany(Order::class, 'user_id');
     }
 
     /**
-     * Security: Determine who can enter the Filament Admin Panel.
-     * Prevents normal 'user' roles from accessing the backend.
+     * Filament Access Security.
      */
     public function canAccessPanel(Panel $panel): bool
     {
@@ -64,12 +65,11 @@ class User extends Authenticatable implements FilamentUser
      */
     public function isShopkeeper(): bool
     {
-        return $this->role === 'shopkeeper' || $this->shopkeeper()->exists();
+        return $this->role === 'shopkeeper';
     }
 
     /**
      * Accessor: Formats the Avatar URL for Flutter.
-     * Ensures the app always gets a full URL for the image.
      */
     public function getAvatarAttribute($value)
     {
@@ -80,10 +80,6 @@ class User extends Authenticatable implements FilamentUser
         return str_starts_with($value, 'http') ? $value : asset('storage/' . $value);
     }
 
-    /**
-     * Modern Laravel Hashing.
-     * Automatically hashes passwords when saved.
-     */
     protected function casts(): array
     {
         return [
@@ -93,18 +89,17 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
-     * Relationship: Connects a Shopkeeper to their customers via Orders.
-     * Used for the "Total Customers" dashboard widget.
+     * Relationship: Connects Shopkeepers to their Customers.
      */
     public function customers(): HasManyThrough
     {
         return $this->hasManyThrough(
             User::class, 
             Order::class, 
-            'shopkeeper_id', // Foreign key on Order table
-            'id',            // Foreign key on User table
-            'id',            // Local key on User table
-            'user_id'        // Local key on Order table
+            'shopkeeper_id', 
+            'id',            
+            'id',            
+            'user_id'        
         );
     }
 }

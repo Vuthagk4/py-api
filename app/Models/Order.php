@@ -19,7 +19,8 @@ class Order extends Model
         'total_amount',
         'status',
         'shopkeeper_id',
-        'image_qrcode'
+        'image_qrcode',
+        'phone', 
     ];
 
     public function user(): BelongsTo

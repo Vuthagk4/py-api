@@ -19,6 +19,7 @@ class Product extends Model
         'category_id',
         'shopkeeper_id', // 🟢 Fixed: Added missing comma
         'stock',      // 🟢 Changed from 'stock' to 'quantity' to match your DB
+        'sizes',
     ];
 
     /**
@@ -53,4 +54,8 @@ class Product extends Model
     {
         return $this->belongsTo(Shopkeeper::class);
     }
+    protected $casts = [
+    'sizes' => 'array',
+    'is_featured' => 'boolean',
+];
 }

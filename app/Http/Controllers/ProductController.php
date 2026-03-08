@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
+use App\Models\User;
 use App\Models\Product;
 use App\Models\Category;
 use App\Services\FCMService;
-use Illuminate\Support\Facades\Storage;
-use App\Models\Feedback;
+use Illuminate\Http\Request;
+// 🟢 FIX 1: Use the correct Facade for database storage
+use Illuminate\Support\Facades\Notification; 
+use Illuminate\Support\Facades\Log; 
+use App\Notifications\NewProductNotification;
 
 class ProductController extends Controller
 {
@@ -24,51 +27,61 @@ class ProductController extends Controller
      */
     public function store(Request $request)
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'required|string',
-            'price' => 'required|numeric',
-            'category_id' => 'required|exists:categories,id',
-            'is_featured' => 'nullable|boolean',
-            'image' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
-        ]);
+         $request->validate([
+        'name'        => 'required|string|max:255',
+        'price'       => 'required|numeric',
+        'category_id' => 'required|exists:categories,id',
+        'image'       => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+        'sizes'       => 'nullable|array', // 🟢
+        'sizes.*'     => 'string|in:XS,S,M,L,XL,XXL', // 🟢 validate each size
+    ]);
 
-        $imagePath = null;
+        $imagePath = $request->hasFile('image')
+        ? $request->file('image')->store('products', 'public')
+        : null;
 
-        if ($request->hasFile('image')) {
-            // 🔥 Explicitly use the 'public' disk for CentOS storage visibility
-            $imagePath = $request->file('image')->store('products', 'public');
+    $product = Product::create([
+        'name'          => $request->name,
+        'description'   => $request->description,
+        'price'         => $request->price,
+        'image'         => $imagePath,
+        'is_featured'   => $request->is_featured ?? 0,
+        'category_id'   => $request->category_id,
+        'shopkeeper_id' => $request->user()->id,
+        'stock'         => $request->stock ?? 0,
+        'sizes'         => $request->sizes ?? ['S', 'M', 'L', 'XL'], // 🟢 default sizes
+    ]);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Product created. Notifications are being processed.',
+        'product' => $product
+    ], 201);
+
+        // 🟢 FIX 2: This is what makes the Flutter list NOT empty
+        try {
+            $users = User::where('role', 'user')->get();
+            // This triggers the 'database' channel in your NewProductNotification
+            Notification::send($users, new NewProductNotification($product));
+        } catch (\Exception $e) {
+            Log::error("Database Notification failed: " . $e->getMessage());
         }
 
-        // Create the product in MySQL
-        $product = Product::create([
-            'name' => $request->name,
-            'description' => $request->description,
-            'price' => $request->price,
-            'image' => $imagePath,
-            'is_featured' => $request->is_featured ?? 0,
-            'category_id' => $request->category_id,
-            // Ensure shopkeeper_id is set if your model requires it
-            'shopkeeper_id' => $request->user()->id, 
-        ]);
-
-        // 🟢 TRIGGER NOTIFICATION: Notify all users subscribed to 'all_users' topic
+        // 🟢 FIX 3: Push Notification (Pop-up alert)
         try {
+            $imageUrl = $product->image ? asset('storage/' . $product->image) : null;
             $this->fcmService->sendToTopic(
                 'all_users', 
-                'New Product in Shop! 👕', 
-                "Check out the new '{$product->name}' just added to our collection."
+                '🆕 New Product Alert!', 
+                "{$product->name} is now available!",
+                ['product_id' => (string) $product->id, 'type' => 'product_update'],
+                $imageUrl
             );
         } catch (\Exception $e) {
-            // Log error but don't stop the product creation
-            \Log::error("FCM Notification failed: " . $e->getMessage());
+            Log::error("FCM Notification failed: " . $e->getMessage());
         }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Product created and notification sent',
-            'product' => $product
-        ], 201);
+        return response()->json(['success' => true, 'product' => $product], 201);
     }
 
     /**
@@ -91,6 +104,26 @@ class ProductController extends Controller
             'featuredProducts' => $featuredProducts
         ], 200);
     }
+    public function update(Request $request, $id)
+{
+    $product = Product::findOrFail($id);
+
+    $request->validate([
+        'sizes'   => 'nullable|array',
+        'sizes.*' => 'string|in:XS,S,M,L,XL,XXL',
+    ]);
+
+    $product->update([
+        'name'        => $request->name ?? $product->name,
+        'description' => $request->description ?? $product->description,
+        'price'       => $request->price ?? $product->price,
+        'stock'       => $request->stock ?? $product->stock,
+        'sizes'       => $request->sizes ?? $product->sizes,
+        'is_featured' => $request->is_featured ?? $product->is_featured,
+    ]);
+
+    return response()->json(['success' => true, 'product' => $product]);
+}
 
     /**
      * Get products by a specific Category ID.

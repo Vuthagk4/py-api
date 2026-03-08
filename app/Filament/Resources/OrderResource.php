@@ -18,15 +18,16 @@ class OrderResource extends Resource
 {
     protected static ?string $model = Order::class;
     protected static ?string $navigationIcon = 'heroicon-o-shopping-bag';
+    protected static ?string $navigationLabel = 'Orders';
     protected static ?int $navigationSort = 4;
 
-    public static function canCreate(): bool { return auth()->user()->role === 'admin'; }
+    public static function canCreate(): bool { return false; }
     public static function canDelete(Model $record): bool { return auth()->user()->role === 'admin'; }
 
     public static function shouldRegisterNavigation(): bool
     {
         $user = auth()->user();
-        if ($user->role === 'admin') return false;
+        if ($user->role === 'admin') return true; // 🟢 admin always sees orders
         return $user->role === 'shopkeeper' && (bool) $user->can_manage_orders;
     }
 
@@ -43,90 +44,60 @@ class OrderResource extends Resource
     {
         return $form
             ->schema([
-                // --- SECTION 1: CORE ORDER INFO ---
                 Forms\Components\Section::make('Order Information')
                     ->schema([
                         Forms\Components\Select::make('user_id')
                             ->relationship('user', 'name')
                             ->label('Customer Account')
                             ->disabled(),
-
                         Forms\Components\Select::make('status')
                             ->options([
-                                'PENDING' => 'Pending (Awaiting Verification)',
+                                'PENDING'    => 'Pending (Awaiting Verification)',
                                 'PROCESSING' => 'Processing',
-                                'COMPLETED' => 'Completed',
-                                'CANCELLED' => 'Cancelled',
+                                'COMPLETED'  => 'Completed',
+                                'CANCELLED'  => 'Cancelled',
                             ])
                             ->required()
                             ->native(false)
                             ->suffixIcon('heroicon-m-check-circle'),
-
                         Forms\Components\TextInput::make('total_amount')
-                            ->numeric()
-                            ->prefix('$')
-                            ->readOnly(),
+                            ->numeric()->prefix('$')->readOnly(),
                     ])->columns(3),
 
-                // --- SECTION 2: SHIPPING & GPS ---
                 Forms\Components\Section::make('Shipping & Contact Details')
-                    ->description('Precise delivery location and contact info')
                     ->schema([
-                        // 🟢 FIXED: Displaying the location name sent from Flutter
                         Forms\Components\TextInput::make('delivery_address')
                             ->label('Selected Location (from Map)')
-                            ->helperText('The readable address picked by the customer on the map')
-                            ->columnSpanFull()
-                            ->readOnly(),
-
+                            ->columnSpanFull()->readOnly(),
                         Forms\Components\Select::make('address_id')
-                            ->relationship('address', 'street') 
-                            ->label('Saved Profile Street')
-                            ->placeholder('No address selected')
-                            ->disabled()
-                            ->columnSpan(2),
-
+                            ->relationship('address', 'street')
+                            ->label('Saved Street')->disabled()->columnSpan(2),
                         Forms\Components\TextInput::make('address.full_name')
-                            ->label('Recipient Name')
-                            ->disabled(),
-                            
+                            ->label('Recipient Name')->disabled(),
                         Forms\Components\TextInput::make('address.phone')
-                            ->label('Contact Phone')
-                            ->prefix('📞')
-                            ->disabled(),
-
-                        Forms\Components\Grid::make(3)
-                            ->schema([
-                                Forms\Components\TextInput::make('latitude')->label('Latitude')->readOnly(),
-                                Forms\Components\TextInput::make('longitude')->label('Longitude')->readOnly(),
-                                
-                                Forms\Components\Placeholder::make('map_link')
-                                    ->label('Navigation')
-                                    ->content(fn ($record) => $record?->latitude 
-                                        ? new HtmlString("<a href='https://www.google.com/maps/search/?api=1&query={$record->latitude},{$record->longitude}' target='_blank' style='color: #2563EB; font-weight: bold; text-decoration: underline;'>📍 Open in Google Maps</a>")
-                                        : 'No GPS data'),
-                            ]),
+                            ->label('Phone')->prefix('📞')->disabled(),
+                        Forms\Components\Grid::make(3)->schema([
+                            Forms\Components\TextInput::make('latitude')->readOnly(),
+                            Forms\Components\TextInput::make('longitude')->readOnly(),
+                            Forms\Components\Placeholder::make('map_link')
+                                ->label('Navigation')
+                                ->content(fn ($record) => $record?->latitude
+                                    ? new HtmlString("<a href='https://www.google.com/maps/search/?api=1&query={$record->latitude},{$record->longitude}' target='_blank' style='color:#2563EB;font-weight:bold;text-decoration:underline;'>📍 Open in Google Maps</a>")
+                                    : 'No GPS data'),
+                        ]),
                     ])->collapsible(),
 
-                // --- SECTION 3: PAYMENT SLIP ---
                 Forms\Components\Section::make('Payment Verification')
                     ->schema([
                         Forms\Components\FileUpload::make('image_qrcode')
-                            ->label('Customer Payment Slip')
-                            ->disk('public')
-                            ->directory('qrcodes')
-                            ->image()
-                            ->imagePreviewHeight('400')
-                            ->disabled() 
+                            ->label('Payment Slip')->disk('public')->directory('qrcodes')
+                            ->image()->imagePreviewHeight('400')->disabled()
                             ->hidden(fn ($record) => !$record?->image_qrcode),
-                        
                         Forms\Components\Placeholder::make('no_image')
-                            ->label('Payment Slip')
-                            ->content('No payment slip uploaded.')
+                            ->label('Payment Slip')->content('No payment slip uploaded.')
                             ->hidden(fn ($record) => $record?->image_qrcode),
                     ])->collapsible(),
 
-                // --- SECTION 4: PRODUCT ITEMS ---
                 Forms\Components\Section::make('Products Ordered')
                     ->schema([
                         Forms\Components\Repeater::make('items')
@@ -134,18 +105,17 @@ class OrderResource extends Resource
                             ->schema([
                                 Forms\Components\Select::make('product_id')
                                     ->relationship('product', 'name')
-                                    ->label('Product')
-                                    ->disabled()
-                                    ->columnSpan(2),
+                                    ->label('Product')->disabled()->columnSpan(2),
                                 Forms\Components\TextInput::make('quantity')->numeric()->disabled(),
                                 Forms\Components\TextInput::make('price')->numeric()->prefix('$')->disabled(),
+                                Forms\Components\Placeholder::make('size')
+                                    ->label('Size')
+                                    ->content(fn ($get) => $get('size') ?? '—'),
                                 Forms\Components\Placeholder::make('subtotal')
                                     ->label('Subtotal')
-                                    ->content(fn($get) => '$' . (number_format(($get('quantity') ?? 0) * ($get('price') ?? 0), 2))),
+                                    ->content(fn ($get) => '$' . number_format(($get('quantity') ?? 0) * ($get('price') ?? 0), 2)),
                             ])
-                            ->columns(5)
-                            ->addable(false)
-                            ->deletable(false),
+                            ->columns(6)->addable(false)->deletable(false),
                     ]),
             ]);
     }
@@ -154,58 +124,187 @@ class OrderResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('id')->label('ID')->sortable(),
-                Tables\Columns\TextColumn::make('user.name')->label('Customer')->searchable(),
+                // 🟢 ID
+                Tables\Columns\TextColumn::make('id')
+                    ->label('# Order')
+                    ->sortable()
+                    ->weight('bold')
+                    ->prefix('#'),
 
-                // 🟢 FIXED: Showing the readable location name in the table
-                Tables\Columns\TextColumn::make('delivery_address')
-                    ->label('Location Name')
-                    ->limit(25)
+                // 🟢 Customer with email below
+                Tables\Columns\TextColumn::make('user.name')
+                    ->label('Customer')
                     ->searchable()
-                    ->placeholder('Map Location Not Set'),
+                    ->sortable()
+                    ->description(fn (Order $record): string => $record->user?->email ?? ''),
 
-                Tables\Columns\TextColumn::make('address.phone')
+                // 🟢 Number of items
+                Tables\Columns\TextColumn::make('items_count')
+                    ->label('Items')
+                    ->counts('items')
+                    ->badge()
+                    ->color('gray')
+                    ->suffix(' item(s)'),
+
+                // 🟢 Sizes
+                Tables\Columns\TextColumn::make('items.size')
+                    ->label('Sizes')
+                    ->badge()
+                    ->color('warning')
+                    ->separator(',')
+                    ->placeholder('—'),
+
+                // 🟢 Location with icon
+                Tables\Columns\TextColumn::make('delivery_address')
+                    ->label('Location')
+                    ->limit(20)
+                    ->searchable()
+                    ->placeholder('Not Set')
+                    ->icon('heroicon-m-map-pin')
+                    ->iconColor('primary'),
+
+                // 🟢 Phone with copy
+                Tables\Columns\TextColumn::make('user.phone')
                     ->label('Phone')
                     ->copyable()
-                    ->placeholder('N/A'),
+                    ->copyMessage('Phone copied!')
+                    ->icon('heroicon-m-phone')
+                    ->placeholder('N/A')
+                    ->description(fn (Order $record): string =>
+                        $record->address?->phone
+                            ? '\xf0\x9f\x93\xa6 ' . $record->address->phone
+                            : ''
+                    ),
 
+                // 🟢 Status with icon
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
-                    ->color(fn(string $state): string => match ($state) {
-                        'PENDING' => 'warning',
+                    ->color(fn (string $state): string => match ($state) {
+                        'PENDING'    => 'warning',
                         'PROCESSING' => 'info',
-                        'COMPLETED' => 'success',
-                        'CANCELLED' => 'danger',
-                        default => 'gray',
+                        'COMPLETED'  => 'success',
+                        'CANCELLED'  => 'danger',
+                        default      => 'gray',
+                    })
+                    ->icon(fn (string $state): string => match ($state) {
+                        'PENDING'    => 'heroicon-m-clock',
+                        'PROCESSING' => 'heroicon-m-arrow-path',
+                        'COMPLETED'  => 'heroicon-m-check-circle',
+                        'CANCELLED'  => 'heroicon-m-x-circle',
+                        default      => 'heroicon-m-question-mark-circle',
                     }),
 
-                Tables\Columns\TextColumn::make('total_amount')->money('USD')->sortable(),
+                // 🟢 Total amount
+                Tables\Columns\TextColumn::make('total_amount')
+                    ->label('Total')
+                    ->money('USD')
+                    ->sortable()
+                    ->color('success')
+                    ->weight('bold'),
 
+                // 🟢 Payment slip
                 Tables\Columns\ImageColumn::make('image_qrcode')
                     ->label('Slip')
                     ->disk('public')
-                    ->circular(),
+                    ->circular()
+                    ->size(45),
 
-                Tables\Columns\TextColumn::make('created_at')->dateTime()->sortable()->toggleable(isToggledHiddenByDefault: true),
+                // 🟢 Shop name (hidden by default)
+                Tables\Columns\TextColumn::make('shopkeeper.shop_name')
+                    ->label('Shop')
+                    ->badge()
+                    ->color('primary')
+                    ->placeholder('N/A')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                // 🟢 Date with "X ago" format
+                Tables\Columns\TextColumn::make('created_at')
+                    ->label('Date')
+                    ->since()
+                    ->sortable()
+                    ->tooltip(fn (Order $record): string => $record->created_at?->format('Y-m-d H:i:s') ?? ''),
+            ])
+            ->defaultSort('id', 'desc')
+            ->striped()
+            ->actionsColumnLabel('Actions') // 🟢 shows "Actions" header
+            ->filters([
+                Tables\Filters\SelectFilter::make('status')
+                    ->options([
+                        'PENDING'    => '🕐 Pending',
+                        'PROCESSING' => '🔄 Processing',
+                        'COMPLETED'  => '✅ Completed',
+                        'CANCELLED'  => '❌ Cancelled',
+                    ])
+                    ->label('Status'),
+
+                Tables\Filters\Filter::make('today')
+                    ->label("Today's Orders")
+                    ->query(fn (Builder $query) => $query->whereDate('created_at', today())),
+
+                Tables\Filters\Filter::make('has_slip')
+                    ->label('Has Payment Slip')
+                    ->query(fn (Builder $query) => $query->whereNotNull('image_qrcode')),
             ])
             ->actions([
-                Tables\Actions\Action::make('verifyPayment')
-                    ->label('Verify')
-                    ->icon('heroicon-m-check-badge')
-                    ->color('success')
-                    ->visible(fn (Order $record) => $record->status === 'PENDING')
-                    ->action(function (Order $record) {
-                        $record->update(['status' => 'COMPLETED']);
-                        Notification::make()->title('Payment Verified')->success()->send();
-                    })
-                    ->requiresConfirmation(),
-                
-                Tables\Actions\EditAction::make(),
+                // 🟢 Verify
+                // Tables\Actions\Action::make('verifyPayment')
+                //     ->label('Verify')
+                //     ->icon('heroicon-m-check-badge')
+                //     ->color('success')
+                //     ->button()
+                //     ->visible(fn (Order $record) => $record->status === 'PENDING')
+                //     ->action(function (Order $record) {
+                //         $record->update(['status' => 'COMPLETED']);
+                //         Notification::make()
+                //             ->title('✅ Payment Verified')
+                //             ->body("Order #{$record->id} marked as completed.")
+                //             ->success()
+                //             ->send();
+                //     })
+                //     ->requiresConfirmation()
+                //     ->modalHeading('Verify Payment')
+                //     ->modalDescription('Confirm the payment slip is valid? This will mark the order as COMPLETED.')
+                //     ->modalSubmitActionLabel('Yes, Verify'),
+
+                // // 🟢 Set Processing
+                // Tables\Actions\Action::make('setProcessing')
+                //     ->label('Processing')
+                //     ->icon('heroicon-m-arrow-path')
+                //     ->color('info')
+                //     ->button()
+                //     ->visible(fn (Order $record) => $record->status === 'PENDING')
+                //     ->action(function (Order $record) {
+                //         $record->update(['status' => 'PROCESSING']);
+                //         Notification::make()->title('Order is Processing')->info()->send();
+                //     }),
+
+                // // 🟢 Cancel
+                // Tables\Actions\Action::make('cancelOrder')
+                //     ->label('Cancel')
+                //     ->icon('heroicon-m-x-circle')
+                //     ->color('danger')
+                //     ->button()
+                //     ->visible(fn (Order $record) => in_array($record->status, ['PENDING', 'PROCESSING']))
+                //     ->action(function (Order $record) {
+                //         $record->update(['status' => 'CANCELLED']);
+                //         Notification::make()->title('Order Cancelled')->warning()->send();
+                //     })
+                //     ->requiresConfirmation(),
+
+                Tables\Actions\EditAction::make()->button()->label('Edit'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\BulkAction::make('bulkVerify')
+                        ->label('Verify Selected')
+                        ->icon('heroicon-m-check-badge')
+                        ->color('success')
+                        ->action(fn ($records) => $records->each->update(['status' => 'COMPLETED']))
+                        ->requiresConfirmation()
+                        ->visible(fn () => auth()->user()->role === 'admin'),
+
                     Tables\Actions\DeleteBulkAction::make()
-                        ->visible(fn() => auth()->user()->role === 'admin'),
+                        ->visible(fn () => auth()->user()->role === 'admin'),
                 ]),
             ]);
     }
@@ -213,9 +312,9 @@ class OrderResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListOrders::route('/'),
+            'index'  => Pages\ListOrders::route('/'),
             'create' => Pages\CreateOrder::route('/create'),
-            'edit' => Pages\EditOrder::route('/{record}/edit'),
+            'edit'   => Pages\EditOrder::route('/{record}/edit'),
         ];
     }
 }

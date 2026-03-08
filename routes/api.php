@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\ChatController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
@@ -46,21 +47,27 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('address/{id}', [AddressController::class, 'update']);
     Route::delete('address/{id}', [AddressController::class, 'destroy']);
 
-    // 🟢 Orders & KHQR Slip Upload
+    // Orders & KHQR Slip Upload
     Route::get('orders', [OrderController::class, 'index']);
     Route::post('order/checkout', [OrderController::class, 'checkout']);
-    
-    // This matches the endpoint called by your Flutter APIProvider
     Route::post('orders/checkout-with-slip', [OrderController::class, 'checkout']);
-    
     Route::post('orders/{id}/pay', [OrderController::class, 'markAsPaid']);
 
-    // Notifications
+    // 🔔 Notification Management
+    Route::get('notifications', [NotificationController::class, 'index']);
     Route::post('update-fcm-token', [NotificationController::class, 'updateFcmToken']);
-    Route::post('/send-notification', [NotificationController::class, 'sendNotification']);
-    Route::post('/send-notification-topic', [NotificationController::class, 'sendToTopic']);
+    
+    // 🟢 NEW: Mark as Read & Delete Routes
+    // These allow your Flutter app to manage the list
+    Route::post('notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+    Route::post('notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
+    Route::delete('notifications/{id}', [NotificationController::class, 'destroy']);
 
-    // Admin Data Management (Filament fallback)
+    // 🟢 Chat System (Flutter to Shopkeeper)
+    Route::post('/chat/send', [ChatController::class, 'sendMessage']);
+    Route::get('/chat/messages/{shopkeeperId}', [ChatController::class, 'getMessages']);
+
+    // Admin/Shopkeeper Data Management
     Route::post('category', [CategoryController::class, 'store']);
     Route::put('category/{id}', [CategoryController::class, 'update']);
     Route::delete('category/{id}', [CategoryController::class, 'destroy']);

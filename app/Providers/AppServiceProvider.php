@@ -17,7 +17,7 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        // 🟢 Registering Observers to listen for Model changes
+        // 🟢 Registering Observers (Simplified)
         Product::observe(ProductObserver::class);
         Order::observe(OrderObserver::class);
     }

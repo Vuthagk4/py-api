@@ -14,7 +14,8 @@ class OrderItem extends Model
         'order_id',
         'product_id',
         'quantity',
-        'price'
+        'price',
+        'size', // 🟢 New: Size of the product (e.g., S, M, L)
     ];
 
     public function product()
