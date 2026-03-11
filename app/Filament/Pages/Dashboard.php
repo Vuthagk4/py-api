@@ -7,7 +7,13 @@ use App\Filament\Widgets\LatestOrders;
 use App\Filament\Widgets\LowStockProducts;
 
 class Dashboard extends \Filament\Pages\Dashboard
+
 {
+    public static function canAccess(): bool
+    {
+        return auth()->check() && auth()->user()->role !== 'admin';
+    }
+
     protected static ?string $navigationIcon = 'heroicon-o-home';
     protected static ?string $navigationLabel = 'Dashboard';
     protected static ?int $navigationSort = -1;

@@ -9,15 +9,14 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-   public function up(): void
+    public function up()
     {
         Schema::table('products', function (Blueprint $table) {
-            // 🟢 Store sizes as JSON array e.g. ["S","M","L","XL"]
-            $table->json('sizes')->nullable()->after('stock');
+            $table->json('sizes')->nullable(); // or $table->string('sizes') if you store as CSV
         });
     }
 
-    public function down(): void
+    public function down()
     {
         Schema::table('products', function (Blueprint $table) {
             $table->dropColumn('sizes');

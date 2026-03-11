@@ -55,7 +55,7 @@ class Product extends Model
         return $this->belongsTo(Shopkeeper::class);
     }
     protected $casts = [
-    'sizes' => 'array',
-    'is_featured' => 'boolean',
-];
+        'sizes' => 'array',
+        'is_featured' => 'boolean',
+    ];
 }

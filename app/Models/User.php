@@ -84,7 +84,7 @@ class User extends Authenticatable implements FilamentUser
     {
         return [
             'email_verified_at' => 'datetime',
-            'password' => 'hashed', 
+            'password' => 'hashed',
         ];
     }
 
@@ -94,12 +94,12 @@ class User extends Authenticatable implements FilamentUser
     public function customers(): HasManyThrough
     {
         return $this->hasManyThrough(
-            User::class, 
-            Order::class, 
-            'shopkeeper_id', 
-            'id',            
-            'id',            
-            'user_id'        
+            User::class,
+            Order::class,
+            'shopkeeper_id',
+            'id',
+            'id',
+            'user_id'
         );
     }
 }

@@ -14,26 +14,30 @@ class LowStockProducts extends BaseWidget
     protected int | string | array $columnSpan = 'full';
     protected static ?string $heading = 'Low Stock Alert';
 
+
+
     /**
      * Set who can see this widget on their dashboard
      */
     public static function canView(): bool
     {
-        return in_array(auth()->user()->role, ['admin', 'shopkeeper']);
+        // return in_array(auth()->user()->role, ['admin', 'shopkeeper']);
+        // return auth()->check() && auth()->user()->role !== 'admin';
+        return auth()->check() && auth()->user()->role === 'shopkeeper';
     }
 
     public function table(Table $table): Table
     {
         return $table
             // Inside app/Filament/Widgets/LowStockProducts.php
-->query(
-    Product::query()
-        ->when(auth()->user()->role !== 'admin', function (Builder $query) {
-            return $query->where('shopkeeper_id', auth()->user()->shopkeeper?->id);
-        })
-        ->where('stock', '<=', 10) // 🟢 Change this back to 'stock'
-        ->latest()
-)
+            ->query(
+                Product::query()
+                    ->when(auth()->user()->role !== 'admin', function (Builder $query) {
+                        return $query->where('shopkeeper_id', auth()->user()->shopkeeper?->id);
+                    })
+                    ->where('stock', '<=', 10) // Change this back to 'stock'
+                    ->latest()
+            )
             ->columns([
                 Tables\Columns\ImageColumn::make('image')
                     ->circular(),
@@ -45,7 +49,7 @@ class LowStockProducts extends BaseWidget
                 // Visible to Admin to see which shop is low on items
                 Tables\Columns\TextColumn::make('shopkeeper.shop_name')
                     ->label('Shop')
-                    ->visible(fn () => auth()->user()->role === 'admin'),
+                    ->visible(fn() => auth()->user()->role === 'admin'),
 
                 // 🟢 Change 'stock' to 'quantity' here too
                 Tables\Columns\TextColumn::make('quantity')

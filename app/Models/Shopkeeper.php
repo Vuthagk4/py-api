@@ -4,17 +4,18 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Shopkeeper extends Model
 {
     protected $fillable = [
-    'user_id',
-    'shop_name',
-    'image',
-    'telegram_username',
-    'phone_number',
-    'is_verified',
-];
+        'user_id',
+        'shop_name',
+        'image',
+        'telegram_username',
+        'phone_number',
+        'is_verified',
+    ];
 
     /**
      * This is what the Filament Select component is looking for!
@@ -30,5 +31,9 @@ class Shopkeeper extends Model
     public function products()
     {
         return $this->hasMany(Product::class);
+    }
+    public function orders(): HasMany
+    {
+        return $this->hasMany(Order::class);
     }
 }

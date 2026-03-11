@@ -11,6 +11,13 @@ class LatestOrders extends BaseWidget
 {
     protected static ?int $sort = 3;
     protected int | string | array $columnSpan = 'full';
+    //ber role == admin no see this
+    public static function canView(): bool
+    {
+        // return auth()->user()->role !== 'admin';
+        return auth()->check() && auth()->user()->role !== 'admin';
+    }
+    //
 
     public function table(Table $table): Table
     {
