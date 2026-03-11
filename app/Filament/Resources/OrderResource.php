@@ -21,13 +21,19 @@ class OrderResource extends Resource
     protected static ?string $navigationLabel = 'Orders';
     protected static ?int $navigationSort = 4;
 
-    public static function canCreate(): bool { return false; }
-    public static function canDelete(Model $record): bool { return auth()->user()->role === 'admin'; }
+    public static function canCreate(): bool
+    {
+        return false;
+    }
+    public static function canDelete(Model $record): bool
+    {
+        return auth()->user()->role === 'admin';
+    }
 
     public static function shouldRegisterNavigation(): bool
     {
         $user = auth()->user();
-        if ($user->role === 'admin') return true; // 🟢 admin always sees orders
+        if ($user->role === 'admin') return false; // 🟢 admin always sees orders
         return $user->role === 'shopkeeper' && (bool) $user->can_manage_orders;
     }
 
@@ -39,6 +45,17 @@ class OrderResource extends Resource
         }
         return parent::getEloquentQuery()->where('shopkeeper_id', $user->shopkeeper?->id);
     }
+    // public static function getEloquentQuery(): Builder
+    // {
+    //     $user = auth()->user();
+
+    //     if ($user->role === 'admin') {
+    //         return parent::getEloquentQuery();
+    //     }
+
+    //     // ✅ Use $user->id directly instead of $user->shopkeeper?->id
+    //     return parent::getEloquentQuery()->where('shopkeeper_id', $user->id);
+    // }
 
     public static function form(Form $form): Form
     {
@@ -81,7 +98,7 @@ class OrderResource extends Resource
                             Forms\Components\TextInput::make('longitude')->readOnly(),
                             Forms\Components\Placeholder::make('map_link')
                                 ->label('Navigation')
-                                ->content(fn ($record) => $record?->latitude
+                                ->content(fn($record) => $record?->latitude
                                     ? new HtmlString("<a href='https://www.google.com/maps/search/?api=1&query={$record->latitude},{$record->longitude}' target='_blank' style='color:#2563EB;font-weight:bold;text-decoration:underline;'>📍 Open in Google Maps</a>")
                                     : 'No GPS data'),
                         ]),
@@ -92,10 +109,10 @@ class OrderResource extends Resource
                         Forms\Components\FileUpload::make('image_qrcode')
                             ->label('Payment Slip')->disk('public')->directory('qrcodes')
                             ->image()->imagePreviewHeight('400')->disabled()
-                            ->hidden(fn ($record) => !$record?->image_qrcode),
+                            ->hidden(fn($record) => !$record?->image_qrcode),
                         Forms\Components\Placeholder::make('no_image')
                             ->label('Payment Slip')->content('No payment slip uploaded.')
-                            ->hidden(fn ($record) => $record?->image_qrcode),
+                            ->hidden(fn($record) => $record?->image_qrcode),
                     ])->collapsible(),
 
                 Forms\Components\Section::make('Products Ordered')
@@ -110,10 +127,10 @@ class OrderResource extends Resource
                                 Forms\Components\TextInput::make('price')->numeric()->prefix('$')->disabled(),
                                 Forms\Components\Placeholder::make('size')
                                     ->label('Size')
-                                    ->content(fn ($get) => $get('size') ?? '—'),
+                                    ->content(fn($get) => $get('size') ?? '—'),
                                 Forms\Components\Placeholder::make('subtotal')
                                     ->label('Subtotal')
-                                    ->content(fn ($get) => '$' . number_format(($get('quantity') ?? 0) * ($get('price') ?? 0), 2)),
+                                    ->content(fn($get) => '$' . number_format(($get('quantity') ?? 0) * ($get('price') ?? 0), 2)),
                             ])
                             ->columns(6)->addable(false)->deletable(false),
                     ]),
@@ -136,7 +153,7 @@ class OrderResource extends Resource
                     ->label('Customer')
                     ->searchable()
                     ->sortable()
-                    ->description(fn (Order $record): string => $record->user?->email ?? ''),
+                    ->description(fn(Order $record): string => $record->user?->email ?? ''),
 
                 // 🟢 Number of items
                 Tables\Columns\TextColumn::make('items_count')
@@ -170,7 +187,8 @@ class OrderResource extends Resource
                     ->copyMessage('Phone copied!')
                     ->icon('heroicon-m-phone')
                     ->placeholder('N/A')
-                    ->description(fn (Order $record): string =>
+                    ->description(
+                        fn(Order $record): string =>
                         $record->address?->phone
                             ? '\xf0\x9f\x93\xa6 ' . $record->address->phone
                             : ''
@@ -179,14 +197,14 @@ class OrderResource extends Resource
                 // 🟢 Status with icon
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
+                    ->color(fn(string $state): string => match ($state) {
                         'PENDING'    => 'warning',
                         'PROCESSING' => 'info',
                         'COMPLETED'  => 'success',
                         'CANCELLED'  => 'danger',
                         default      => 'gray',
                     })
-                    ->icon(fn (string $state): string => match ($state) {
+                    ->icon(fn(string $state): string => match ($state) {
                         'PENDING'    => 'heroicon-m-clock',
                         'PROCESSING' => 'heroicon-m-arrow-path',
                         'COMPLETED'  => 'heroicon-m-check-circle',
@@ -222,7 +240,7 @@ class OrderResource extends Resource
                     ->label('Date')
                     ->since()
                     ->sortable()
-                    ->tooltip(fn (Order $record): string => $record->created_at?->format('Y-m-d H:i:s') ?? ''),
+                    ->tooltip(fn(Order $record): string => $record->created_at?->format('Y-m-d H:i:s') ?? ''),
             ])
             ->defaultSort('id', 'desc')
             ->striped()
@@ -239,11 +257,11 @@ class OrderResource extends Resource
 
                 Tables\Filters\Filter::make('today')
                     ->label("Today's Orders")
-                    ->query(fn (Builder $query) => $query->whereDate('created_at', today())),
+                    ->query(fn(Builder $query) => $query->whereDate('created_at', today())),
 
                 Tables\Filters\Filter::make('has_slip')
                     ->label('Has Payment Slip')
-                    ->query(fn (Builder $query) => $query->whereNotNull('image_qrcode')),
+                    ->query(fn(Builder $query) => $query->whereNotNull('image_qrcode')),
             ])
             ->actions([
                 // 🟢 Verify
@@ -299,12 +317,12 @@ class OrderResource extends Resource
                         ->label('Verify Selected')
                         ->icon('heroicon-m-check-badge')
                         ->color('success')
-                        ->action(fn ($records) => $records->each->update(['status' => 'COMPLETED']))
+                        ->action(fn($records) => $records->each->update(['status' => 'COMPLETED']))
                         ->requiresConfirmation()
-                        ->visible(fn () => auth()->user()->role === 'admin'),
+                        ->visible(fn() => auth()->user()->role === 'admin'),
 
                     Tables\Actions\DeleteBulkAction::make()
-                        ->visible(fn () => auth()->user()->role === 'admin'),
+                        ->visible(fn() => auth()->user()->role === 'admin'),
                 ]),
             ]);
     }
