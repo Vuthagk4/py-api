@@ -13,14 +13,15 @@ class Order extends Model
 
     protected $fillable = [
         'user_id',
-        'address_id',    // 🟢 Linked to shipping_addresses
-        'latitude',      // 🟢 New: GPS Latitude
-        'longitude',     // 🟢 New: GPS Longitude
+        'address_id',
+        'latitude',
+        'longitude',
+        'delivery_address',  // ✅ ADD THIS
         'total_amount',
         'status',
         'shopkeeper_id',
         'image_qrcode',
-        'phone', 
+        'phone',
     ];
 
     public function user(): BelongsTo
@@ -28,9 +29,6 @@ class Order extends Model
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * 🟢 Relationship to the Shipping Address
-     */
     public function address(): BelongsTo
     {
         return $this->belongsTo(Address::class);

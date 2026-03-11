@@ -22,7 +22,7 @@ class OrderController extends Controller
             'latitude'         => 'nullable|numeric',
             'longitude'        => 'nullable|numeric',
             'delivery_address' => 'nullable|string',
-            'phone'            => 'nullable|string|max:20', // 🟢
+            'phone'            => 'nullable|string|max:20',
             'items'            => 'required',
             'image_qrcode'     => 'nullable|image|mimes:jpeg,png,jpg|max:10240',
         ]);
@@ -32,7 +32,8 @@ class OrderController extends Controller
 
                 $imagePath = null;
                 if ($request->hasFile('image_qrcode')) {
-                    $imagePath = $request->file('image_qrcode')->store('qrcodes', 'public');
+                    $imagePath = $request->file('image_qrcode')
+                        ->store('qrcodes', 'public');
                 }
 
                 $order = Order::create([
@@ -40,8 +41,8 @@ class OrderController extends Controller
                     'address_id'       => $request->address_id ?? null,
                     'latitude'         => $request->latitude,
                     'longitude'        => $request->longitude,
-                    'delivery_address' => $request->delivery_address,
-                    'phone'            => $request->phone, // 🟢
+                    'delivery_address' => $request->delivery_address, // ✅
+                    'phone'            => $request->phone,
                     'total_amount'     => $request->total_amount,
                     'status'           => $imagePath ? 'PENDING' : 'UNPAID',
                     'shopkeeper_id'    => $request->shopkeeper_id,
@@ -57,7 +58,6 @@ class OrderController extends Controller
                 }
 
                 foreach ($items as $item) {
-                    Log::info('Item received:', $item);
                     OrderItem::create([
                         'order_id'   => $order->id,
                         'product_id' => $item['product']['id'],
@@ -68,9 +68,11 @@ class OrderController extends Controller
                 }
 
                 return response()->json([
-                    'message'   => "Order placed successfully",
-                    'order_id'  => $order->id,
-                    'image_url' => $imagePath ? asset('storage/' . $imagePath) : null,
+                    'message'  => "Order placed successfully",
+                    'order_id' => $order->id,
+                    'image_url' => $imagePath
+                        ? asset('storage/' . $imagePath)
+                        : null,
                 ], 201);
             });
         } catch (\Exception $e) {
@@ -84,9 +86,9 @@ class OrderController extends Controller
     public function index(Request $request)
     {
         $orders = Order::where('user_id', $request->user()->id)
-                    ->with(['items.product', 'address'])
-                    ->latest()
-                    ->get();
+            ->with(['items.product', 'address'])
+            ->latest()
+            ->get();
 
         $orders->map(function ($order) {
             if ($order->image_qrcode) {

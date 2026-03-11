@@ -11,7 +11,6 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Filament\Notifications\Notification;
 use Illuminate\Support\HtmlString;
 
 class OrderResource extends Resource
@@ -25,37 +24,42 @@ class OrderResource extends Resource
     {
         return false;
     }
+
     public static function canDelete(Model $record): bool
     {
         return auth()->user()->role === 'admin';
     }
 
+    // ✅ Admin does NOT see Orders, only shopkeeper does
     public static function shouldRegisterNavigation(): bool
-    {
-        $user = auth()->user();
-        if ($user->role === 'admin') return false; // 🟢 admin always sees orders
-        return $user->role === 'shopkeeper' && (bool) $user->can_manage_orders;
-    }
+{
+    $user = auth()->user();
 
+    // 🟢 Fix 1: Admin should NOT see the Order menu based on your previous request
+    if ($user->role === 'admin') return false;
+
+    // 🟢 Fix 2: Shopkeeper ONLY sees the menu if their toggle is ON in the database
+    // Note: We cast to (bool) to ensure it handles 0/1 correctly from MySQL
+    return $user->role === 'shopkeeper' && (bool) $user->can_manage_orders;
+}
+
+    // ✅ Shopkeeper sees only their own orders, everyone else sees nothing
     public static function getEloquentQuery(): Builder
-    {
-        $user = auth()->user();
-        if ($user->role === 'admin' || $user->email === 'admin@me.com') {
-            return parent::getEloquentQuery();
+{
+    $user = auth()->user();
+
+    // 🟢 Fix 3: Even if they access the URL directly, block data if toggle is OFF
+    if ($user->role === 'shopkeeper') {
+        if (!(bool) $user->can_manage_orders) {
+            return parent::getEloquentQuery()->whereRaw('0 = 1'); // Returns nothing
         }
-        return parent::getEloquentQuery()->where('shopkeeper_id', $user->shopkeeper?->id);
+
+        return parent::getEloquentQuery()
+            ->where('shopkeeper_id', $user->shopkeeper?->id);
     }
-    // public static function getEloquentQuery(): Builder
-    // {
-    //     $user = auth()->user();
 
-    //     if ($user->role === 'admin') {
-    //         return parent::getEloquentQuery();
-    //     }
-
-    //     // ✅ Use $user->id directly instead of $user->shopkeeper?->id
-    //     return parent::getEloquentQuery()->where('shopkeeper_id', $user->id);
-    // }
+    return parent::getEloquentQuery()->whereRaw('0 = 1');
+}
 
     public static function form(Form $form): Form
     {
@@ -85,21 +89,36 @@ class OrderResource extends Resource
                     ->schema([
                         Forms\Components\TextInput::make('delivery_address')
                             ->label('Selected Location (from Map)')
-                            ->columnSpanFull()->readOnly(),
+                            ->columnSpanFull()
+                            ->readOnly(),
+
+                        Forms\Components\TextInput::make('phone')
+                            ->label('Customer Phone')
+                            ->prefix('📞')
+                            ->disabled()
+                            ->columnSpanFull(),
+
                         Forms\Components\Select::make('address_id')
                             ->relationship('address', 'street')
-                            ->label('Saved Street')->disabled()->columnSpan(2),
-                        Forms\Components\TextInput::make('address.full_name')
-                            ->label('Recipient Name')->disabled(),
-                        Forms\Components\TextInput::make('address.phone')
-                            ->label('Phone')->prefix('📞')->disabled(),
+                            ->label('Saved Street')
+                            ->disabled()
+                            ->columnSpanFull()
+                            ->hidden(fn($record) => !$record?->address_id),
+
                         Forms\Components\Grid::make(3)->schema([
-                            Forms\Components\TextInput::make('latitude')->readOnly(),
-                            Forms\Components\TextInput::make('longitude')->readOnly(),
+                            Forms\Components\TextInput::make('latitude')
+                                ->readOnly(),
+                            Forms\Components\TextInput::make('longitude')
+                                ->readOnly(),
                             Forms\Components\Placeholder::make('map_link')
                                 ->label('Navigation')
                                 ->content(fn($record) => $record?->latitude
-                                    ? new HtmlString("<a href='https://www.google.com/maps/search/?api=1&query={$record->latitude},{$record->longitude}' target='_blank' style='color:#2563EB;font-weight:bold;text-decoration:underline;'>📍 Open in Google Maps</a>")
+                                    ? new HtmlString(
+                                        "<a href='https://www.google.com/maps/search/?api=1&query={$record->latitude},{$record->longitude}'
+                                        target='_blank'
+                                        style='color:#2563EB;font-weight:bold;text-decoration:underline;'>
+                                        📍 Open in Google Maps</a>"
+                                    )
                                     : 'No GPS data'),
                         ]),
                     ])->collapsible(),
@@ -107,11 +126,16 @@ class OrderResource extends Resource
                 Forms\Components\Section::make('Payment Verification')
                     ->schema([
                         Forms\Components\FileUpload::make('image_qrcode')
-                            ->label('Payment Slip')->disk('public')->directory('qrcodes')
-                            ->image()->imagePreviewHeight('400')->disabled()
+                            ->label('Payment Slip')
+                            ->disk('public')
+                            ->directory('qrcodes')
+                            ->image()
+                            ->imagePreviewHeight('400')
+                            ->disabled()
                             ->hidden(fn($record) => !$record?->image_qrcode),
                         Forms\Components\Placeholder::make('no_image')
-                            ->label('Payment Slip')->content('No payment slip uploaded.')
+                            ->label('Payment Slip')
+                            ->content('No payment slip uploaded.')
                             ->hidden(fn($record) => $record?->image_qrcode),
                     ])->collapsible(),
 
@@ -122,17 +146,25 @@ class OrderResource extends Resource
                             ->schema([
                                 Forms\Components\Select::make('product_id')
                                     ->relationship('product', 'name')
-                                    ->label('Product')->disabled()->columnSpan(2),
-                                Forms\Components\TextInput::make('quantity')->numeric()->disabled(),
-                                Forms\Components\TextInput::make('price')->numeric()->prefix('$')->disabled(),
+                                    ->label('Product')
+                                    ->disabled()
+                                    ->columnSpan(2),
+                                Forms\Components\TextInput::make('quantity')
+                                    ->numeric()->disabled(),
+                                Forms\Components\TextInput::make('price')
+                                    ->numeric()->prefix('$')->disabled(),
                                 Forms\Components\Placeholder::make('size')
                                     ->label('Size')
                                     ->content(fn($get) => $get('size') ?? '—'),
                                 Forms\Components\Placeholder::make('subtotal')
                                     ->label('Subtotal')
-                                    ->content(fn($get) => '$' . number_format(($get('quantity') ?? 0) * ($get('price') ?? 0), 2)),
+                                    ->content(fn($get) => '$' . number_format(
+                                        ($get('quantity') ?? 0) * ($get('price') ?? 0), 2
+                                    )),
                             ])
-                            ->columns(6)->addable(false)->deletable(false),
+                            ->columns(6)
+                            ->addable(false)
+                            ->deletable(false),
                     ]),
             ]);
     }
@@ -141,21 +173,19 @@ class OrderResource extends Resource
     {
         return $table
             ->columns([
-                // 🟢 ID
                 Tables\Columns\TextColumn::make('id')
                     ->label('# Order')
                     ->sortable()
                     ->weight('bold')
                     ->prefix('#'),
 
-                // 🟢 Customer with email below
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('Customer')
                     ->searchable()
                     ->sortable()
-                    ->description(fn(Order $record): string => $record->user?->email ?? ''),
+                    ->description(fn(Order $record): string =>
+                        $record->user?->email ?? ''),
 
-                // 🟢 Number of items
                 Tables\Columns\TextColumn::make('items_count')
                     ->label('Items')
                     ->counts('items')
@@ -163,7 +193,6 @@ class OrderResource extends Resource
                     ->color('gray')
                     ->suffix(' item(s)'),
 
-                // 🟢 Sizes
                 Tables\Columns\TextColumn::make('items.size')
                     ->label('Sizes')
                     ->badge()
@@ -171,30 +200,21 @@ class OrderResource extends Resource
                     ->separator(',')
                     ->placeholder('—'),
 
-                // 🟢 Location with icon
                 Tables\Columns\TextColumn::make('delivery_address')
                     ->label('Location')
-                    ->limit(20)
+                    ->limit(25)
                     ->searchable()
                     ->placeholder('Not Set')
                     ->icon('heroicon-m-map-pin')
                     ->iconColor('primary'),
 
-                // 🟢 Phone with copy
-                Tables\Columns\TextColumn::make('user.phone')
+                Tables\Columns\TextColumn::make('phone')
                     ->label('Phone')
                     ->copyable()
                     ->copyMessage('Phone copied!')
                     ->icon('heroicon-m-phone')
-                    ->placeholder('N/A')
-                    ->description(
-                        fn(Order $record): string =>
-                        $record->address?->phone
-                            ? '\xf0\x9f\x93\xa6 ' . $record->address->phone
-                            : ''
-                    ),
+                    ->placeholder('N/A'),
 
-                // 🟢 Status with icon
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
                     ->color(fn(string $state): string => match ($state) {
@@ -212,7 +232,6 @@ class OrderResource extends Resource
                         default      => 'heroicon-m-question-mark-circle',
                     }),
 
-                // 🟢 Total amount
                 Tables\Columns\TextColumn::make('total_amount')
                     ->label('Total')
                     ->money('USD')
@@ -220,31 +239,22 @@ class OrderResource extends Resource
                     ->color('success')
                     ->weight('bold'),
 
-                // 🟢 Payment slip
                 Tables\Columns\ImageColumn::make('image_qrcode')
                     ->label('Slip')
                     ->disk('public')
                     ->circular()
                     ->size(45),
 
-                // 🟢 Shop name (hidden by default)
-                Tables\Columns\TextColumn::make('shopkeeper.shop_name')
-                    ->label('Shop')
-                    ->badge()
-                    ->color('primary')
-                    ->placeholder('N/A')
-                    ->toggleable(isToggledHiddenByDefault: true),
-
-                // 🟢 Date with "X ago" format
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Date')
                     ->since()
                     ->sortable()
-                    ->tooltip(fn(Order $record): string => $record->created_at?->format('Y-m-d H:i:s') ?? ''),
+                    ->tooltip(fn(Order $record): string =>
+                        $record->created_at?->format('Y-m-d H:i:s') ?? ''),
             ])
             ->defaultSort('id', 'desc')
             ->striped()
-            ->actionsColumnLabel('Actions') // 🟢 shows "Actions" header
+            ->actionsColumnLabel('Actions')
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
                     ->options([
@@ -257,58 +267,15 @@ class OrderResource extends Resource
 
                 Tables\Filters\Filter::make('today')
                     ->label("Today's Orders")
-                    ->query(fn(Builder $query) => $query->whereDate('created_at', today())),
+                    ->query(fn(Builder $query) =>
+                        $query->whereDate('created_at', today())),
 
                 Tables\Filters\Filter::make('has_slip')
                     ->label('Has Payment Slip')
-                    ->query(fn(Builder $query) => $query->whereNotNull('image_qrcode')),
+                    ->query(fn(Builder $query) =>
+                        $query->whereNotNull('image_qrcode')),
             ])
             ->actions([
-                // 🟢 Verify
-                // Tables\Actions\Action::make('verifyPayment')
-                //     ->label('Verify')
-                //     ->icon('heroicon-m-check-badge')
-                //     ->color('success')
-                //     ->button()
-                //     ->visible(fn (Order $record) => $record->status === 'PENDING')
-                //     ->action(function (Order $record) {
-                //         $record->update(['status' => 'COMPLETED']);
-                //         Notification::make()
-                //             ->title('✅ Payment Verified')
-                //             ->body("Order #{$record->id} marked as completed.")
-                //             ->success()
-                //             ->send();
-                //     })
-                //     ->requiresConfirmation()
-                //     ->modalHeading('Verify Payment')
-                //     ->modalDescription('Confirm the payment slip is valid? This will mark the order as COMPLETED.')
-                //     ->modalSubmitActionLabel('Yes, Verify'),
-
-                // // 🟢 Set Processing
-                // Tables\Actions\Action::make('setProcessing')
-                //     ->label('Processing')
-                //     ->icon('heroicon-m-arrow-path')
-                //     ->color('info')
-                //     ->button()
-                //     ->visible(fn (Order $record) => $record->status === 'PENDING')
-                //     ->action(function (Order $record) {
-                //         $record->update(['status' => 'PROCESSING']);
-                //         Notification::make()->title('Order is Processing')->info()->send();
-                //     }),
-
-                // // 🟢 Cancel
-                // Tables\Actions\Action::make('cancelOrder')
-                //     ->label('Cancel')
-                //     ->icon('heroicon-m-x-circle')
-                //     ->color('danger')
-                //     ->button()
-                //     ->visible(fn (Order $record) => in_array($record->status, ['PENDING', 'PROCESSING']))
-                //     ->action(function (Order $record) {
-                //         $record->update(['status' => 'CANCELLED']);
-                //         Notification::make()->title('Order Cancelled')->warning()->send();
-                //     })
-                //     ->requiresConfirmation(),
-
                 Tables\Actions\EditAction::make()->button()->label('Edit'),
             ])
             ->bulkActions([
@@ -317,12 +284,11 @@ class OrderResource extends Resource
                         ->label('Verify Selected')
                         ->icon('heroicon-m-check-badge')
                         ->color('success')
-                        ->action(fn($records) => $records->each->update(['status' => 'COMPLETED']))
-                        ->requiresConfirmation()
-                        ->visible(fn() => auth()->user()->role === 'admin'),
+                        ->action(fn($records) =>
+                            $records->each->update(['status' => 'COMPLETED']))
+                        ->requiresConfirmation(),
 
-                    Tables\Actions\DeleteBulkAction::make()
-                        ->visible(fn() => auth()->user()->role === 'admin'),
+                    Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ]);
     }
